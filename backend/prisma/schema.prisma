@@ -1,0 +1,190 @@
+// ParkPilot Prisma Schema Definition
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User Roles Enum
+enum UserRole {
+  CUSTOMER
+  PROVIDER
+  BOTH
+}
+
+// Parking Type Enum
+enum ParkingType {
+  COVERED
+  OPEN
+  MULTI_LEVEL
+  VALET
+}
+
+// Parking Space Operating Status
+enum ParkingStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+}
+
+// Booking Lifecycle Status
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  COMPLETED
+  CANCELLED
+}
+
+// Payment Method Options
+enum PaymentMethod {
+  CARD
+  UPI
+  WALLET
+  CASH
+}
+
+// Payment Processing Status
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+// Notification Category Types
+enum NotificationType {
+  BOOKING_CONFIRMATION
+  REMINDER
+  CANCELLATION
+  SYSTEM
+}
+
+// User Model (Customers & Providers)
+model User {
+  id           String         @id @default(uuid())
+  firebaseUid  String         @unique
+  name         String
+  email        String         @unique
+  phone        String?
+  profileImage String?
+  role         UserRole       @default(CUSTOMER)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  // Relationships
+  parkingSpaces ParkingSpace[] @relation("ProviderSpaces")
+  bookings      Booking[]      @relation("CustomerBookings")
+  reviews       Review[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+// Parking Space Model
+model ParkingSpace {
+  id             String        @id @default(uuid())
+  providerId     String
+  provider       User          @relation("ProviderSpaces", fields: [providerId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  address        String
+  latitude       Float
+  longitude      Float
+  parkingType    ParkingType   @default(COVERED)
+  totalSlots     Int
+  availableSlots Int
+  pricePerHour   Float
+  operatingHours String        @default("24/7")
+  status         ParkingStatus @default(ACTIVE)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  // Relationships
+  bookings Booking[]
+  reviews  Review[]
+
+  @@index([latitude, longitude])
+  @@index([providerId])
+  @@index([status])
+  @@map("parking_spaces")
+}
+
+// Booking Model
+model Booking {
+  id             String        @id @default(uuid())
+  customerId     String
+  customer       User          @relation("CustomerBookings", fields: [customerId], references: [id], onDelete: Cascade)
+  parkingSpaceId String
+  parkingSpace   ParkingSpace  @relation(fields: [parkingSpaceId], references: [id], onDelete: Cascade)
+  bookingDate    DateTime
+  startTime      DateTime
+  endTime        DateTime
+  duration       Float         // in hours
+  slotNumber     String?
+  totalAmount    Float
+  status         BookingStatus @default(CONFIRMED)
+  qrCode         String        @unique
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  // Relationships
+  payment Payment?
+
+  @@index([customerId])
+  @@index([parkingSpaceId])
+  @@index([bookingDate])
+  @@index([status])
+  @@index([qrCode])
+  @@map("bookings")
+}
+
+// Payment Model
+model Payment {
+  id            String        @id @default(uuid())
+  bookingId     String        @unique
+  booking       Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  amount        Float
+  paymentMethod PaymentMethod @default(UPI)
+  status        PaymentStatus @default(COMPLETED)
+  transactionId String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@map("payments")
+}
+
+// Notification Model
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      NotificationType @default(SYSTEM)
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId])
+  @@map("notifications")
+}
+
+// Review Model
+model Review {
+  id             String       @id @default(uuid())
+  customerId     String
+  customer       User         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  parkingSpaceId String
+  parkingSpace   ParkingSpace @relation(fields: [parkingSpaceId], references: [id], onDelete: Cascade)
+  rating         Int          // 1 to 5
+  comment        String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([parkingSpaceId])
+  @@map("reviews")
+}
