@@ -8,7 +8,7 @@ import {
   verifyQrCode,
   checkInBooking,
 } from '../controllers/bookingController';
-import { authenticateFirebaseToken } from '../middleware/auth';
+import { authenticateFirebaseToken, requireParkPilotUser } from '../middleware/auth';
 import { authorizeRoles } from '../middleware/rbac';
 import { validateBody } from '../middleware/validate';
 import { z } from 'zod';
@@ -29,25 +29,25 @@ const verifyQrSchema = z.object({
 });
 
 // QR verification endpoint for parking providers & scanners
-router.post('/verify-qr', authenticateFirebaseToken, validateBody(verifyQrSchema), verifyQrCode);
+router.post('/verify-qr', authenticateFirebaseToken, requireParkPilotUser, authorizeRoles(UserRole.PROVIDER, UserRole.BOTH), validateBody(verifyQrSchema), verifyQrCode);
 
 // Customer reservation endpoint
 router.post(
   '/',
   authenticateFirebaseToken,
+  requireParkPilotUser,
   authorizeRoles(UserRole.CUSTOMER, UserRole.BOTH),
   validateBody(createBookingSchema),
   createBooking
 );
 
 // Booking queries
-router.get('/customer/:customerId', authenticateFirebaseToken, getCustomerBookings);
-router.get('/provider/:providerId', authenticateFirebaseToken, getProviderBookings);
-router.get('/:id', authenticateFirebaseToken, getBookingById);
+router.get('/customer/:customerId', authenticateFirebaseToken, requireParkPilotUser, getCustomerBookings);
+router.get('/provider/:providerId', authenticateFirebaseToken, requireParkPilotUser, authorizeRoles(UserRole.PROVIDER, UserRole.BOTH), getProviderBookings);
+router.get('/:id', authenticateFirebaseToken, requireParkPilotUser, getBookingById);
 
 // Booking Cancellation & Check-In
-router.put('/:id/cancel', authenticateFirebaseToken, cancelBooking);
-router.put('/:id/check-in', authenticateFirebaseToken, checkInBooking);
+router.put('/:id/cancel', authenticateFirebaseToken, requireParkPilotUser, cancelBooking);
+router.put('/:id/check-in', authenticateFirebaseToken, requireParkPilotUser, authorizeRoles(UserRole.PROVIDER, UserRole.BOTH), checkInBooking);
 
 export default router;
-

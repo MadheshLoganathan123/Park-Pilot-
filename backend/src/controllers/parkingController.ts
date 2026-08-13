@@ -84,7 +84,7 @@ export async function updateParkingSpace(req: Request, res: Response, next: Next
       throw new AppError('Parking space not found', 404);
     }
 
-    if (existingSpace.providerId !== req.user?.id && req.user?.role !== 'BOTH') {
+    if (existingSpace.providerId !== req.user?.id) {
       throw new AppError('Unauthorized: You can only update parking spaces you own.', 403);
     }
 
@@ -104,7 +104,7 @@ export async function deleteParkingSpace(req: Request, res: Response, next: Next
       throw new AppError('Parking space not found', 404);
     }
 
-    if (existingSpace.providerId !== req.user?.id && req.user?.role !== 'BOTH') {
+    if (existingSpace.providerId !== req.user?.id) {
       throw new AppError('Unauthorized: You can only delete parking spaces you own.', 403);
     }
 

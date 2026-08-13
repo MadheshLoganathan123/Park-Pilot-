@@ -33,11 +33,7 @@ export async function getBookingById(req: Request, res: Response, next: NextFunc
     const booking = await bookingService.getBookingById(id);
 
     // Authorization check
-    if (
-      req.user?.role !== 'PROVIDER' &&
-      booking.customerId !== req.user?.id &&
-      booking.parkingSpace.providerId !== req.user?.id
-    ) {
+    if (booking.customerId !== req.user?.id && booking.parkingSpace.providerId !== req.user?.id) {
       throw new AppError('Unauthorized access to booking information', 403);
     }
 
@@ -51,7 +47,7 @@ export async function getCustomerBookings(req: Request, res: Response, next: Nex
   try {
     const { customerId } = req.params;
 
-    if (req.user?.id !== customerId && req.user?.role !== 'BOTH') {
+    if (req.user?.id !== customerId) {
       throw new AppError('Unauthorized: You can only view your own customer bookings.', 403);
     }
 
@@ -66,7 +62,7 @@ export async function getProviderBookings(req: Request, res: Response, next: Nex
   try {
     const { providerId } = req.params;
 
-    if (req.user?.id !== providerId && req.user?.role !== 'BOTH') {
+    if (req.user?.id !== providerId) {
       throw new AppError('Unauthorized: You can only view bookings for your parking spaces.', 403);
     }
 
@@ -117,4 +113,3 @@ export async function checkInBooking(req: Request, res: Response, next: NextFunc
     next(error);
   }
 }
-

@@ -1,9 +1,11 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/parking_lot.dart';
+import '../models/user_profile.dart';
 import 'api_client.dart';
+import 'profile_service.dart';
 
 enum AppUserRole { customer, provider }
 
@@ -36,31 +38,45 @@ class ParkingDataService extends ChangeNotifier {
       return null;
     }
   }
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    clientId: kIsWeb ? '80113388831-442moemc4p7ljp39bj9u5qrsbrpelilk.apps.googleusercontent.com' : null,
+  );
   final ApiClient _apiClient = ApiClient();
+  final ProfileService _profileService = ProfileService();
   
   SharedPreferences? _prefs;
   bool _isLoggedIn = false;
   String? _userId;
   String? _userEmail;
   AppUserRole _currentRole = AppUserRole.customer;
+  UserProfile? _profile;
+  bool _isProfileLoading = false;
+  String? _profileError;
 
   bool get isLoggedIn => _isLoggedIn;
   String? get userId => _userId;
   String? get userEmail => _userEmail;
   AppUserRole get currentRole => _currentRole;
+  UserProfile? get profile => _profile;
+  bool get isProfileLoading => _isProfileLoading;
+  String? get profileError => _profileError;
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
-    _isLoggedIn = _prefs?.getBool('isLoggedIn') ?? false;
-    _userId = _prefs?.getString('userId');
-    _userEmail = _prefs?.getString('userEmail');
-    final roleString = _prefs?.getString('userRole');
-    if (roleString != null) {
-      _currentRole = roleString == 'provider' ? AppUserRole.provider : AppUserRole.customer;
-    }
-    
-    if (_isLoggedIn) {
+    final firebaseUser = _auth?.currentUser;
+    _isLoggedIn = firebaseUser != null;
+    _profile = null;
+    _profileError = null;
+    _userId = null;
+    _userEmail = null;
+
+    if (_isLoggedIn && firebaseUser != null) {
+      try {
+        await refreshProfile();
+      } catch (_) {
+        // Keep the Firebase session active. The Profile screen displays a
+        // retryable error instead of treating a temporary API outage as logout.
+      }
       loadLots();
       loadBookings();
     }
@@ -68,52 +84,57 @@ class ParkingDataService extends ChangeNotifier {
 
   Future<void> login(String email, String password, AppUserRole role) async {
     try {
-      final auth = _auth;
-      if (auth != null) {
-        final credential = await auth.signInWithEmailAndPassword(email: email, password: password);
-        await _saveSession(credential.user?.uid ?? 'user_123', email, role);
-      } else {
-        await _saveSession('user_123', email, role);
-      }
+      _resetProfileState();
+      final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(email: email, password: password);
+      await _syncAndSaveSession(credential.user!, role);
       loadLots();
       loadBookings();
     } on FirebaseAuthException catch (e) {
       debugPrint('Login failed: ${e.message}');
       rethrow;
-    } catch (e) {
-      debugPrint('Login fallback error: $e');
-      await _saveSession('user_123', email, role);
-      loadLots();
-      loadBookings();
     }
   }
 
   Future<void> createAccount(String email, String password, AppUserRole role) async {
     try {
-      final auth = _auth;
-      if (auth != null) {
-        final credential = await auth.createUserWithEmailAndPassword(email: email, password: password);
-        await _saveSession(credential.user?.uid ?? 'user_123', email, role);
-      } else {
-        await _saveSession('user_123', email, role);
-      }
+      _resetProfileState();
+      final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(email: email, password: password);
+      await _syncAndSaveSession(credential.user!, role);
       loadLots();
       loadBookings();
     } on FirebaseAuthException catch (e) {
       debugPrint('Registration failed: ${e.message}');
       rethrow;
-    } catch (e) {
-      debugPrint('Registration fallback error: $e');
-      await _saveSession('user_123', email, role);
-      loadLots();
-      loadBookings();
     }
   }
 
-  Future<void> signInWithGoogle(AppUserRole role) async {
+  Future<bool> signInWithGoogle(AppUserRole role) async {
+    final auth = _auth;
+
+    // Web Platform Flow via Firebase Auth Popup
+    if (kIsWeb && auth != null) {
+      try {
+        _resetProfileState();
+        final GoogleAuthProvider googleProvider = GoogleAuthProvider()
+          ..setCustomParameters({'prompt': 'select_account'}); // Always show account chooser
+        final userCredential = await auth.signInWithPopup(googleProvider);
+        await _syncAndSaveSession(userCredential.user!, role);
+        await loadLots();
+        await loadBookings();
+        notifyListeners();
+        return true;
+      } on FirebaseAuthException { rethrow; }
+    }
+
     try {
+      // Sign out any cached account first so the account picker always appears
+      await _googleSignIn.signOut();
+      _resetProfileState();
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) return;
+      if (googleUser == null) {
+        // User cancelled Google Sign-In
+        return false;
+      }
 
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
       final AuthCredential credential = GoogleAuthProvider.credential(
@@ -121,19 +142,46 @@ class ParkingDataService extends ChangeNotifier {
         idToken: googleAuth.idToken,
       );
 
-      final auth = _auth;
-      if (auth != null) {
-        final userCredential = await auth.signInWithCredential(credential);
-        await _saveSession(userCredential.user?.uid, userCredential.user?.email, role);
-      } else {
-        await _saveSession('google_user_123', googleUser.email, role);
-      }
-      loadLots();
-      loadBookings();
+      if (auth == null) throw StateError('Firebase Authentication is unavailable.');
+      final userCredential = await auth.signInWithCredential(credential);
+      await _syncAndSaveSession(userCredential.user!, role);
+      await loadLots();
+      await loadBookings();
+      notifyListeners();
+      return true;
+    } on FirebaseAuthException catch (e) {
+      debugPrint('Google Sign-In failed: $e');
+      rethrow;
     } catch (e) {
       debugPrint('Google Sign-In failed: $e');
       rethrow;
     }
+  }
+
+  void _resetProfileState() {
+    _profile = null;
+    _profileError = null;
+    _isProfileLoading = false;
+    _userId = null;
+    _userEmail = null;
+    notifyListeners();
+  }
+
+  Future<void> _syncAndSaveSession(User firebaseUser, AppUserRole selectedRole) async {
+    await firebaseUser.getIdToken(true);
+    final profile = await _profileService.sync(role: selectedRole == AppUserRole.provider ? 'PROVIDER' : 'CUSTOMER');
+    _profile = profile;
+    _applyProfile(profile);
+    await _saveSession(profile.id, profile.email, _roleFromProfile(profile));
+  }
+
+  AppUserRole _roleFromProfile(UserProfile profile) => profile.role == 'PROVIDER' ? AppUserRole.provider : AppUserRole.customer;
+
+  void _applyProfile(UserProfile profile) {
+    _profile = profile;
+    _userId = profile.id;
+    _userEmail = profile.email;
+    _currentRole = _roleFromProfile(profile);
   }
 
   Future<void> _saveSession(String? uid, String? email, AppUserRole role) async {
@@ -150,6 +198,51 @@ class ParkingDataService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> refreshProfile() async {
+    _isProfileLoading = true;
+    _profileError = null;
+    notifyListeners();
+    try {
+      final profile = await _profileService.getProfile();
+      _applyProfile(profile);
+      await _saveSession(profile.id, profile.email, _roleFromProfile(profile));
+    } catch (error) {
+      _profileError = _profileErrorMessage(error);
+      debugPrint('Unable to load ParkPilot profile: $error');
+      rethrow;
+    } finally {
+      _isProfileLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> updateProfile({
+    String? name,
+    String? phone,
+    String? profileImage,
+    bool clearProfileImage = false,
+    AppUserRole? role,
+  }) async {
+    final updated = await _profileService.updateProfile(
+      name: name,
+      phone: phone,
+      profileImage: profileImage,
+      clearProfileImage: clearProfileImage,
+      role: role == null ? null : (role == AppUserRole.provider ? 'PROVIDER' : 'CUSTOMER'),
+    );
+    _applyProfile(updated);
+    await _saveSession(updated.id, updated.email, _roleFromProfile(updated));
+  }
+
+  String _profileErrorMessage(Object error) {
+    if (error is ApiException) {
+      if (error.statusCode == 401) return 'Your session has expired. Please sign in again.';
+      if (error.statusCode == 503) return 'Profile service is temporarily unavailable.';
+      return error.message;
+    }
+    return 'Unable to load your profile. Check your connection and try again.';
+  }
+
   Future<void> logout() async {
     try {
       await _auth?.signOut();
@@ -161,6 +254,12 @@ class ParkingDataService extends ChangeNotifier {
     _isLoggedIn = false;
     _userId = null;
     _userEmail = null;
+    _profile = null;
+    _profileError = null;
+    _isProfileLoading = false;
+    _currentRole = AppUserRole.customer;
+    _bookings = [];
+    _lots = [];
     
     await _prefs?.clear();
     notifyListeners();
@@ -373,8 +472,9 @@ class ParkingDataService extends ChangeNotifier {
   Map<String, dynamic>? get providerStats => _providerStats;
 
   Future<void> loadProviderStats() async {
+    final pid = _userId;
+    if (pid == null) return;
     try {
-      final pid = _userId ?? 'provider_123';
       final data = await _apiClient.get('/providers/$pid/revenue');
       if (data is Map<String, dynamic>) {
         _providerStats = data;
@@ -437,4 +537,3 @@ class ParkingDataService extends ChangeNotifier {
     ),
   ];
 }
-

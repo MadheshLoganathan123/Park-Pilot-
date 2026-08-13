@@ -7,7 +7,7 @@ export async function getProviderParkingSpaces(req: Request, res: Response, next
   try {
     const { id: providerId } = req.params;
 
-    if (req.user?.id !== providerId && req.user?.role !== 'BOTH') {
+    if (req.user?.id !== providerId) {
       throw new AppError('Unauthorized: You can only view your own provider spaces.', 403);
     }
 
@@ -22,7 +22,7 @@ export async function getProviderBookings(req: Request, res: Response, next: Nex
   try {
     const { id: providerId } = req.params;
 
-    if (req.user?.id !== providerId && req.user?.role !== 'BOTH') {
+    if (req.user?.id !== providerId) {
       throw new AppError('Unauthorized: You can only view bookings for your parking spaces.', 403);
     }
 
@@ -37,7 +37,7 @@ export async function getProviderRevenueStats(req: Request, res: Response, next:
   try {
     const { id: providerId } = req.params;
 
-    if (req.user?.id !== providerId && req.user?.role !== 'BOTH') {
+    if (req.user?.id !== providerId) {
       throw new AppError('Unauthorized: You can only view revenue statistics for your account.', 403);
     }
 

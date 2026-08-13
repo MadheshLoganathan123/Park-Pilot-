@@ -8,7 +8,7 @@ import {
   deleteParkingSpace,
   calculateRouteToParking,
 } from '../controllers/parkingController';
-import { authenticateFirebaseToken } from '../middleware/auth';
+import { authenticateFirebaseToken, requireParkPilotUser } from '../middleware/auth';
 import { authorizeRoles } from '../middleware/rbac';
 import { validateBody } from '../middleware/validate';
 import { z } from 'zod';
@@ -43,6 +43,7 @@ router.get('/:id/route', calculateRouteToParking);
 router.post(
   '/',
   authenticateFirebaseToken,
+  requireParkPilotUser,
   authorizeRoles(UserRole.PROVIDER, UserRole.BOTH),
   validateBody(createParkingSchema),
   createParkingSpace
@@ -51,6 +52,7 @@ router.post(
 router.put(
   '/:id',
   authenticateFirebaseToken,
+  requireParkPilotUser,
   authorizeRoles(UserRole.PROVIDER, UserRole.BOTH),
   validateBody(updateParkingSchema),
   updateParkingSpace
@@ -59,6 +61,7 @@ router.put(
 router.delete(
   '/:id',
   authenticateFirebaseToken,
+  requireParkPilotUser,
   authorizeRoles(UserRole.PROVIDER, UserRole.BOTH),
   deleteParkingSpace
 );
