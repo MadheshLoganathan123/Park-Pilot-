@@ -6,6 +6,7 @@ import {
   getProviderBookings,
   cancelBooking,
   verifyQrCode,
+  checkInBooking,
 } from '../controllers/bookingController';
 import { authenticateFirebaseToken } from '../middleware/auth';
 import { authorizeRoles } from '../middleware/rbac';
@@ -44,7 +45,9 @@ router.get('/customer/:customerId', authenticateFirebaseToken, getCustomerBookin
 router.get('/provider/:providerId', authenticateFirebaseToken, getProviderBookings);
 router.get('/:id', authenticateFirebaseToken, getBookingById);
 
-// Booking Cancellation
+// Booking Cancellation & Check-In
 router.put('/:id/cancel', authenticateFirebaseToken, cancelBooking);
+router.put('/:id/check-in', authenticateFirebaseToken, checkInBooking);
 
 export default router;
+

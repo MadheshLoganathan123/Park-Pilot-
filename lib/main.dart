@@ -1,8 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'screens/app_shell.dart';
+import 'screens/login_screen.dart';
+import 'services/parking_data_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize Firebase
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e) {
+    debugPrint('Firebase initialization failed: $e');
+  }
+
+  final dataService = ParkingDataService();
+  await dataService.init(); // Initialize local persistence
+
   runApp(const ParkPilotApp());
 }
 
@@ -11,6 +29,8 @@ class ParkPilotApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dataService = ParkingDataService();
+
     return MaterialApp(
       title: 'ParkPilot',
       debugShowCheckedModeBanner: false,
@@ -36,7 +56,7 @@ class ParkPilotApp extends StatelessWidget {
           iconTheme: IconThemeData(color: Color(0xFF1E293B)),
         ),
       ),
-      home: const AppShell(),
+      home: dataService.isLoggedIn ? const AppShell() : const LoginScreen(),
     );
   }
 }

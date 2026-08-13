@@ -3,140 +3,169 @@ import '../../services/parking_data_service.dart';
 import 'parking_details_screen.dart';
 import 'slot_selection_screen.dart';
 
-class FindParkingScreen extends StatelessWidget {
+class FindParkingScreen extends StatefulWidget {
   const FindParkingScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final dataService = ParkingDataService();
+  State<FindParkingScreen> createState() => _FindParkingScreenState();
+}
 
+class _FindParkingScreenState extends State<FindParkingScreen> {
+  final ParkingDataService _dataService = ParkingDataService();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _dataService.loadLots();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: const Icon(Icons.arrow_back, color: Color(0xFF005DAC)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF005DAC)),
+          onPressed: () => Navigator.maybePop(context),
+        ),
         title: const Text('Find Parking', style: TextStyle(color: Color(0xFF005DAC), fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white,
         elevation: 0,
       ),
-      body: Column(
-        children: [
-          const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.search, color: Color(0xFF94A3B8)),
-                        SizedBox(width: 12),
-                        Text(
-                          'Search destination...',
-                          style: TextStyle(color: Color(0xFF94A3B8)),
+      body: AnimatedBuilder(
+        animation: _dataService,
+        builder: (context, _) {
+          return Column(
+            children: [
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
                         ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.tune_rounded, color: Color(0xFF005DAC)),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          // List / Map Toggle
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 60),
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(30),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(25),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.search, color: Color(0xFF94A3B8)),
+                            SizedBox(width: 12),
+                            Text(
+                              'Search destination...',
+                              style: TextStyle(color: Color(0xFF94A3B8)),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.format_list_bulleted, size: 18, color: Color(0xFF005DAC)),
-                        SizedBox(width: 8),
-                        Text('List', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF005DAC))),
-                      ],
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.tune_rounded, color: Color(0xFF005DAC)),
                     ),
-                  ),
+                  ],
                 ),
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.map_outlined, size: 18, color: Color(0xFF64748B)),
-                        SizedBox(width: 8),
-                        Text('Map', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
-                      ],
-                    ),
-                  ),
+              ),
+              const SizedBox(height: 20),
+              // List / Map Toggle
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 60),
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(30),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          // Horizontal Filters
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                _buildSmallFilterChip('Nearest', isSelected: true),
-                _buildSmallFilterChip('Price'),
-                _buildSmallFilterChip('Availability'),
-                _buildSmallFilterChip('Rating'),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Results List
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: dataService.lots.length,
-              itemBuilder: (context, index) {
-                final lot = dataService.lots[index];
-                Color accentColor = index == 0 ? const Color(0xFF22C55E) : (index == 1 ? const Color(0xFFFBBF24) : const Color(0xFFEF4444));
-                String availabilityText = index == 0 ? '12 slots available' : (index == 1 ? '5 slots left' : '2 slots left');
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(25),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.05),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.format_list_bulleted, size: 18, color: Color(0xFF005DAC)),
+                            SizedBox(width: 8),
+                            Text('List', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF005DAC))),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.map_outlined, size: 18, color: Color(0xFF64748B)),
+                            SizedBox(width: 8),
+                            Text('Map', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Horizontal Filters
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    _buildSmallFilterChip('Nearest', isSelected: true),
+                    _buildSmallFilterChip('Price'),
+                    _buildSmallFilterChip('Availability'),
+                    _buildSmallFilterChip('Rating'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Results List / Loading / Error
+              Expanded(
+                child: _dataService.isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : RefreshIndicator(
+                        onRefresh: () => _dataService.loadLots(),
+                        child: ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          itemCount: _dataService.lots.length,
+                          itemBuilder: (context, index) {
+                            final lot = _dataService.lots[index];
+                            final avail = lot.availableSlotsCount;
+                            Color accentColor = avail > 20
+                                ? const Color(0xFF22C55E)
+                                : (avail > 5 ? const Color(0xFFFBBF24) : const Color(0xFFEF4444));
+                            String availabilityText = '$avail slots available';
 
-                return _buildSearchLotCard(context, lot, accentColor, availabilityText);
-              },
-            ),
-          ),
-        ],
+                            return _buildSearchLotCard(context, lot, accentColor, availabilityText);
+                          },
+                        ),
+                      ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

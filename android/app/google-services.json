@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "80113388831",
+    "project_id": "parkpilot-242eb",
+    "storage_bucket": "parkpilot-242eb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:80113388831:android:28626a80bdfbeb5799b42a",
+        "android_client_info": {
+          "package_name": "com.parkpilot.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "80113388831-5cfcfa87pto11a7ovdop2dr0djaojep7.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.parkpilot.app",
+            "certificate_hash": "3160362f7c8f2d7e18ec0898a34bde3e5f3da24a"
+          }
+        },
+        {
+          "client_id": "80113388831-442moemc4p7ljp39bj9u5qrsbrpelilk.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBHFcKas58Y_OmD8pMnb9m1lL9PPgmAO3g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "80113388831-442moemc4p7ljp39bj9u5qrsbrpelilk.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "80113388831-d8vnv8qd028ejj35l70ioqumplufianq.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.parkPilot"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -107,3 +107,14 @@ export async function verifyQrCode(req: Request, res: Response, next: NextFuncti
     next(error);
   }
 }
+
+export async function checkInBooking(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const result = await bookingService.checkInBooking(id);
+    return sendSuccess(res, result, 'Booking checked in successfully');
+  } catch (error) {
+    next(error);
+  }
+}
+

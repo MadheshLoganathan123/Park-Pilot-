@@ -44,53 +44,9 @@ class _AppShellState extends State<AppShell> {
         ];
 
         return Scaffold(
-          body: Stack(
-            children: [
-              IndexedStack(
-                index: isCustomer ? _customerTabIndex : _providerTabIndex,
-                children: isCustomer ? customerPages : providerPages,
-              ),
-              Positioned(
-                top: MediaQuery.of(context).padding.top + 10,
-                right: 16,
-                child: GestureDetector(
-                  onTap: () {
-                    dataService.toggleRole(
-                      isCustomer ? AppUserRole.provider : AppUserRole.customer,
-                    );
-                  },
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF005DAC).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                          color:
-                              const Color(0xFF005DAC).withValues(alpha: 0.2)),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          isCustomer ? Icons.storefront : Icons.directions_car,
-                          size: 16,
-                          color: const Color(0xFF005DAC),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          isCustomer ? 'Provider Mode' : 'Customer Mode',
-                          style: const TextStyle(
-                            color: Color(0xFF005DAC),
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
+          body: IndexedStack(
+            index: isCustomer ? _customerTabIndex : _providerTabIndex,
+            children: isCustomer ? customerPages : providerPages,
           ),
           bottomNavigationBar: Container(
             decoration: BoxDecoration(

@@ -3,246 +3,272 @@ import '../../services/parking_data_service.dart';
 import 'parking_details_screen.dart';
 import 'slot_selection_screen.dart';
 
-class CustomerHomeScreen extends StatelessWidget {
+class CustomerHomeScreen extends StatefulWidget {
   const CustomerHomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final dataService = ParkingDataService();
+  State<CustomerHomeScreen> createState() => _CustomerHomeScreenState();
+}
 
+class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
+  final ParkingDataService _dataService = ParkingDataService();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _dataService.loadLots();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 20),
-              // App Bar (ParkPilot, Notification, Profile)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+        child: AnimatedBuilder(
+          animation: _dataService,
+          builder: (context, _) {
+            final lotsList = _dataService.lots;
+
+            return SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF005DAC),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Text(
-                            'P',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'ParkPilot',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF005DAC),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  const SizedBox(height: 20),
+                  // App Bar (ParkPilot, Notification, Profile)
                   Row(
-                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Stack(
-                        children: [
-                          const Icon(Icons.notifications_none_rounded, size: 28, color: Color(0xFF1E293B)),
-                          Positioned(
-                            right: 4,
-                            top: 4,
-                            child: Container(
-                              width: 8,
-                              height: 8,
-                              decoration: const BoxDecoration(
-                                color: Colors.red,
-                                shape: BoxShape.circle,
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF005DAC),
+                                borderRadius: BorderRadius.circular(8),
                               ),
+                              child: const Text(
+                                'P',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'ParkPilot',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF005DAC),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Stack(
+                            children: [
+                              const Icon(Icons.notifications_none_rounded, size: 28, color: Color(0xFF1E293B)),
+                              Positioned(
+                                right: 4,
+                                top: 4,
+                                child: Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: const BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(width: 16),
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF005DAC),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Center(
+                              child: Text('M', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                             ),
                           ),
                         ],
-                      ),
-                      const SizedBox(width: 16),
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF005DAC),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Center(
-                          child: Text('M', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        ),
                       ),
                     ],
                   ),
-                ],
-              ),
-              const SizedBox(height: 30),
-              // Greeting
-              const Text(
-                'Good Morning, Madhesh!',
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1E293B),
-                ),
-              ),
-              const Text(
-                'Ready to find your spot today?',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Color(0xFF64748B),
-                ),
-              ),
-              const SizedBox(height: 24),
-              // Search Bar
-              Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.search, color: Color(0xFF94A3B8)),
-                          SizedBox(width: 12),
-                          Text(
-                            'Where do you want to park?',
-                            style: TextStyle(color: Color(0xFF94A3B8)),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(Icons.tune_rounded, color: Color(0xFF1E293B)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              // Filter Tabs
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _buildFilterChip('Find Parking', isSelected: true),
-                    _buildFilterChip('Nearby'),
-                    _buildFilterChip('Reservations'),
-                    _buildFilterChip('EV Charging'),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              // Map Preview Image
-              Container(
-                height: 200,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFDBEAFE), Color(0xFFE0F2FE)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
-                child: Center(
-                  child: Container(
-                    width: 150,
-                    height: 180,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.08),
-                          blurRadius: 14,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        Icon(Icons.phone_iphone, size: 56, color: Color(0xFF005DAC)),
-                        SizedBox(height: 16),
-                        Text(
-                          'Map Preview',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1E293B),
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Live route details',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Color(0xFF64748B)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              // Parking Near You Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
+                  const SizedBox(height: 30),
+                  // Greeting
                   const Text(
-                    'Parking Near You',
+                    'Good Morning, Madhesh!',
                     style: TextStyle(
-                      fontSize: 20,
+                      fontSize: 26,
                       fontWeight: FontWeight.bold,
                       color: Color(0xFF1E293B),
                     ),
                   ),
-                  TextButton(
-                    onPressed: () {},
-                    child: const Text('See All', style: TextStyle(color: Color(0xFF005DAC))),
+                  const Text(
+                    'Ready to find your spot today?',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Color(0xFF64748B),
+                    ),
                   ),
+                  const SizedBox(height: 24),
+                  // Search Bar
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.search, color: Color(0xFF94A3B8)),
+                              SizedBox(width: 12),
+                              Text(
+                                'Where do you want to park?',
+                                style: TextStyle(color: Color(0xFF94A3B8)),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.tune_rounded, color: Color(0xFF1E293B)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  // Filter Tabs
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildFilterChip('Find Parking', isSelected: true),
+                        _buildFilterChip('Nearby'),
+                        _buildFilterChip('Reservations'),
+                        _buildFilterChip('EV Charging'),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  // Map Preview Card
+                  Container(
+                    height: 180,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFDBEAFE), Color(0xFFE0F2FE)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.08),
+                              blurRadius: 14,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Icon(Icons.map_rounded, size: 48, color: Color(0xFF005DAC)),
+                            SizedBox(height: 12),
+                            Text(
+                              'Live Map Discovery',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1E293B),
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'Explore real-time slot availability in Chennai',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  // Parking Near You Header
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Parking Near You',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => _dataService.loadLots(),
+                        child: const Text('Refresh', style: TextStyle(color: Color(0xFF005DAC))),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  // Parking Cards List
+                  if (_dataService.isLoading && lotsList.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 40),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else
+                    ...lotsList.take(3).map((lot) {
+                      final avail = lot.availableSlotsCount;
+                      final borderColor = avail > 20
+                          ? const Color(0xFF22C55E)
+                          : (avail > 5 ? const Color(0xFFF97316) : const Color(0xFFEF4444));
+                      final statusText = '$avail Slots Available';
+
+                      return _buildParkingCard(
+                        context,
+                        lot,
+                        borderColor: borderColor,
+                        status: statusText,
+                        statusColor: borderColor,
+                      );
+                    }),
+                  const SizedBox(height: 20),
                 ],
               ),
-              const SizedBox(height: 12),
-              // Parking Cards
-              _buildParkingCard(
-                context,
-                dataService.lots[0],
-                borderColor: const Color(0xFF22C55E),
-                status: '12 Slots Available',
-                statusColor: const Color(0xFF22C55E),
-              ),
-              _buildParkingCard(
-                context,
-                dataService.lots[1],
-                borderColor: const Color(0xFFF97316),
-                status: '2 Slots Available',
-                statusColor: const Color(0xFFF97316),
-              ),
-              const SizedBox(height: 20),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
@@ -311,9 +337,13 @@ class CustomerHomeScreen extends StatelessWidget {
                           children: [
                             const Icon(Icons.location_on_outlined, size: 14, color: Color(0xFF64748B)),
                             const SizedBox(width: 4),
-                            Text(
-                              '${lot.address} • ${lot.distance}',
-                              style: const TextStyle(color: Color(0xFF64748B), fontSize: 13),
+                            Expanded(
+                              child: Text(
+                                '${lot.address} • ${lot.distance}',
+                                style: const TextStyle(color: Color(0xFF64748B), fontSize: 13),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                           ],
                         ),

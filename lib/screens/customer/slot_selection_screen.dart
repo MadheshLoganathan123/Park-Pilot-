@@ -19,6 +19,7 @@ class _SlotSelectionScreenState extends State<SlotSelectionScreen> {
   String? _selectedSlotId;
   int _durationHours = 2;
   String _selectedFloor = 'All Floors';
+  bool _isSubmitting = false;
 
   @override
   Widget build(BuildContext context) {
@@ -411,54 +412,92 @@ class _SlotSelectionScreenState extends State<SlotSelectionScreen> {
                   width: double.infinity,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: _selectedSlotId != null ? const Color(0xFF005DAC) : const Color(0xFF94A3B8),
+                      backgroundColor: (_selectedSlotId != null && !_isSubmitting)
+                          ? const Color(0xFF005DAC)
+                          : const Color(0xFF94A3B8),
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    onPressed: _selectedSlotId == null
+                    onPressed: (_selectedSlotId == null || _isSubmitting)
                         ? null
-                        : () {
-                            final totalAmount = effectiveRate * _durationHours;
-                            final newBooking = Booking(
-                              bookingId: 'PK-${(10000 + (DateTime.now().millisecondsSinceEpoch % 89999))}',
-                              lotName: lot.name,
-                              lotAddress: lot.address,
-                              slotId: _selectedSlotId!,
-                              date: DateTime.now(),
-                              timeRange: '${DateTime.now().hour}:00 - ${DateTime.now().hour + _durationHours}:00',
-                              durationHours: _durationHours,
-                              totalAmount: totalAmount,
-                              qrData: 'PARKPILOT-${lot.id}-${_selectedSlotId!}',
-                            );
+                        : () async {
+                            setState(() {
+                              _isSubmitting = true;
+                            });
 
-                            dataService.addBooking(newBooking);
+                            try {
+                              final now = DateTime.now();
+                              final endTime = now.add(Duration(hours: _durationHours));
 
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Reserved Slot $_selectedSlotId at ${lot.name}!'),
-                                backgroundColor: const Color(0xFF005DAC),
-                              ),
-                            );
+                              final createdBooking = await dataService.createBookingApi(
+                                parkingSpaceId: lot.id,
+                                bookingDate: now,
+                                startTime: now,
+                                endTime: endTime,
+                                paymentMethod: 'UPI',
+                              );
 
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => ConfirmationScreen(booking: newBooking),
-                              ),
-                            );
+                              if (!mounted) return;
+
+                              final finalBooking = createdBooking ?? Booking(
+                                bookingId: 'PK-${(10000 + (now.millisecondsSinceEpoch % 89999))}',
+                                lotName: lot.name,
+                                lotAddress: lot.address,
+                                slotId: _selectedSlotId!,
+                                date: now,
+                                timeRange: '${now.hour}:00 - ${now.hour + _durationHours}:00',
+                                durationHours: _durationHours,
+                                totalAmount: effectiveRate * _durationHours,
+                                qrData: 'PARKPILOT-${lot.id}-${_selectedSlotId!}',
+                              );
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Reserved Slot ${_selectedSlotId!} at ${lot.name}!'),
+                                  backgroundColor: const Color(0xFF005DAC),
+                                ),
+                              );
+
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ConfirmationScreen(booking: finalBooking),
+                                ),
+                              );
+                            } catch (e) {
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Booking Error: ${e.toString()}'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            } finally {
+                              if (mounted) {
+                                setState(() {
+                                  _isSubmitting = false;
+                                });
+                              }
+                            }
                           },
-                    child: Text(
-                      _selectedSlotId == null
-                          ? 'Select a Parking Slot'
-                          : 'Confirm Booking (₹${(effectiveRate * _durationHours).toInt()})',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
+                    child: _isSubmitting
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          )
+                        : Text(
+                            _selectedSlotId == null
+                                ? 'Select a Parking Slot'
+                                : 'Confirm Booking (₹${(effectiveRate * _durationHours).toInt()})',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
                   ),
                 ),
               ),

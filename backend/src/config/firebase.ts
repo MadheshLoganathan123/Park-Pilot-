@@ -4,22 +4,30 @@ import { env } from './env';
 let firebaseAdminApp: admin.app.App | null = null;
 let isFirebaseInitialized = false;
 
-if (env.FIREBASE_PROJECT_ID && env.FIREBASE_CLIENT_EMAIL && env.FIREBASE_PRIVATE_KEY) {
+const hasValidCredentials =
+  env.FIREBASE_PROJECT_ID &&
+  env.FIREBASE_CLIENT_EMAIL &&
+  env.FIREBASE_PRIVATE_KEY &&
+  !env.FIREBASE_PRIVATE_KEY.includes('YOUR_PRIVATE_KEY_HERE');
+
+if (hasValidCredentials) {
   try {
+    const privateKey = env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n');
     firebaseAdminApp = admin.initializeApp({
       credential: admin.credential.cert({
         projectId: env.FIREBASE_PROJECT_ID,
         clientEmail: env.FIREBASE_CLIENT_EMAIL,
-        privateKey: env.FIREBASE_PRIVATE_KEY,
+        privateKey,
       }),
     });
     isFirebaseInitialized = true;
     console.log('🔥 Firebase Admin SDK initialized successfully.');
-  } catch (error) {
-    console.warn('⚠️ Firebase Admin SDK initialization failed. Fallback dev mode active.', error);
+  } catch (error: any) {
+    console.warn('⚠️ Firebase Admin SDK initialization failed:', error.message);
+    console.log('ℹ️ Fallback Dev/Mock Mode Active for Authentication.');
   }
 } else {
-  console.log('ℹ️ Firebase credentials not provided in .env. Running Firebase Auth in Dev/Mock mode.');
+  console.log('ℹ️ Firebase production credentials not set in .env. Running in Dev/Mock Mode.');
 }
 
 export { firebaseAdminApp, isFirebaseInitialized, admin };

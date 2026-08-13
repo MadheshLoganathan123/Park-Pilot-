@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/parking_data_service.dart';
+import '../login_screen.dart';
 
 class ProviderProfileScreen extends StatelessWidget {
   const ProviderProfileScreen({super.key});
@@ -144,7 +145,16 @@ class ProviderProfileScreen extends StatelessWidget {
             const SizedBox(height: 32),
             // Logout
             TextButton(
-              onPressed: () {},
+              onPressed: () async {
+                await dataService.logout();
+                if (context.mounted) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (context) => const LoginScreen()),
+                    (route) => false,
+                  );
+                }
+              },
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [

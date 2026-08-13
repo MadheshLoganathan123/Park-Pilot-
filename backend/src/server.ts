@@ -20,6 +20,18 @@ async function bootstrap() {
       `);
     });
 
+    // Handle port already in use — prevents nodemon crash loops
+    server.on('error', async (error: NodeJS.ErrnoException) => {
+      if (error.code === 'EADDRINUSE') {
+        console.error(`\n❌ Port ${env.PORT} is already in use.`);
+        console.error(`   Run: netstat -ano | findstr :${env.PORT}  then  taskkill /PID <PID> /F`);
+        await prisma.$disconnect();
+        process.exit(1);
+      } else {
+        throw error;
+      }
+    });
+
     // Handle Graceful Shutdown
     const shutdown = async (signal: string) => {
       console.log(`\n🛑 Received ${signal}. Shutting down server gracefully...`);

@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import '../../services/parking_data_service.dart';
+import '../login_screen.dart';
 
 class CustomerProfileScreen extends StatelessWidget {
   const CustomerProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final dataService = ParkingDataService();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Profile', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -17,8 +21,8 @@ class CustomerProfileScreen extends StatelessWidget {
               child: Container(
                 width: 100,
                 height: 100,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF005DAC),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF005DAC),
                   shape: BoxShape.circle,
                 ),
                 alignment: Alignment.center,
@@ -26,8 +30,8 @@ class CustomerProfileScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            const Text('Madhesh', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-            const Text('madhesh@example.com', style: TextStyle(color: Colors.grey)),
+            const Text('Madhesh Loganathan', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            Text(dataService.userEmail ?? 'madhesh@example.com', style: const TextStyle(color: Colors.grey)),
             const SizedBox(height: 32),
             _buildProfileItem(Icons.person_outline, 'My Account'),
             _buildProfileItem(Icons.directions_car_outlined, 'My Vehicles'),
@@ -36,7 +40,16 @@ class CustomerProfileScreen extends StatelessWidget {
             _buildProfileItem(Icons.help_outline, 'Help & Support'),
             const SizedBox(height: 32),
             TextButton(
-              onPressed: () {},
+              onPressed: () async {
+                await dataService.logout();
+                if (context.mounted) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (context) => const LoginScreen()),
+                    (route) => false,
+                  );
+                }
+              },
               child: const Text('Logout', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
             ),
           ],

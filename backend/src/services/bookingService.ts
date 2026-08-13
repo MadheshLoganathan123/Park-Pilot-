@@ -251,6 +251,52 @@ export class BookingService {
       booking,
     };
   }
+
+  async checkInBooking(bookingIdOrQr: string) {
+    const booking = await prisma.booking.findFirst({
+      where: {
+        OR: [
+          { id: bookingIdOrQr },
+          { qrCode: bookingIdOrQr },
+        ],
+      },
+      include: {
+        parkingSpace: true,
+        customer: { select: { id: true, name: true, email: true, phone: true } },
+      },
+    });
+
+    if (!booking) {
+      throw new AppError('Booking record not found for check-in.', 404);
+    }
+
+    if (booking.status === BookingStatus.CANCELLED) {
+      throw new AppError('Cannot check in a cancelled booking.', 400);
+    }
+
+    const updatedBooking = await prisma.booking.update({
+      where: { id: booking.id },
+      data: { status: BookingStatus.CHECKED_IN },
+      include: {
+        customer: { select: { id: true, name: true, email: true, phone: true } },
+        parkingSpace: { select: { id: true, name: true, address: true } },
+        payment: true,
+      },
+    });
+
+    await prisma.notification.create({
+      data: {
+        userId: booking.customerId,
+        title: 'Checked In Successfully!',
+        message: `You have checked in at ${booking.parkingSpace.name}.`,
+        type: NotificationType.SYSTEM,
+      },
+    });
+
+
+    return updatedBooking;
+  }
 }
 
 export const bookingService = new BookingService();
+

@@ -21,6 +21,33 @@ class ParkingSlot {
   });
 
   bool get isOccupied => status == SlotStatus.occupied;
+
+  factory ParkingSlot.fromJson(Map<String, dynamic> json) {
+    SlotStatus parseStatus(String? statusStr) {
+      switch (statusStr?.toUpperCase()) {
+        case 'OCCUPIED': return SlotStatus.occupied;
+        case 'RESERVED': return SlotStatus.reserved;
+        case 'MAINTENANCE': return SlotStatus.maintenance;
+        default: return SlotStatus.available;
+      }
+    }
+
+    return ParkingSlot(
+      id: json['id']?.toString() ?? 'A-01',
+      floor: json['floor']?.toString() ?? 'Floor 1',
+      status: parseStatus(json['status']?.toString()),
+      isEv: json['isEv'] == true,
+      isHandicapped: json['isHandicapped'] == true,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'floor': floor,
+    'status': status.name.toUpperCase(),
+    'isEv': isEv,
+    'isHandicapped': isHandicapped,
+  };
 }
 
 class ParkingLot {
@@ -59,6 +86,75 @@ class ParkingLot {
   double get occupancyPercentage => totalSlotsCount > 0 
       ? ((totalSlotsCount - availableSlotsCount) / totalSlotsCount) * 100 
       : 0.0;
+
+  factory ParkingLot.fromJson(Map<String, dynamic> json) {
+    final totalSlots = (json['totalSlots'] as num?)?.toInt() ?? 10;
+    final availableSlots = (json['availableSlots'] as num?)?.toInt() ?? totalSlots;
+
+    List<ParkingSlot> parsedSlots = [];
+    if (json['slots'] is List && (json['slots'] as List).isNotEmpty) {
+      parsedSlots = (json['slots'] as List).map((s) => ParkingSlot.fromJson(s as Map<String, dynamic>)).toList();
+    } else {
+      parsedSlots = List.generate(totalSlots, (index) {
+        final floorNum = (index ~/ 10) + 1;
+        final slotLetter = String.fromCharCode(65 + (index ~/ 20));
+        final slotNum = (index % 20) + 1;
+        final status = index < availableSlots ? SlotStatus.available : SlotStatus.occupied;
+        return ParkingSlot(
+          id: '$slotLetter-${slotNum.toString().padLeft(2, '0')}',
+          floor: 'Floor $floorNum',
+          status: status,
+          isEv: index % 5 == 0,
+        );
+      });
+    }
+
+    String formatType(String? typeStr) {
+      switch (typeStr?.toUpperCase()) {
+        case 'MULTI_LEVEL': return 'Multi-level';
+        case 'COVERED': return 'Covered';
+        case 'OPEN': return 'Open';
+        case 'VALET': return 'Valet';
+        default: return typeStr ?? 'Covered';
+      }
+    }
+
+    final rawDistance = json['distanceKm'] != null 
+        ? '${(json['distanceKm'] as num).toStringAsFixed(1)} km'
+        : (json['distance']?.toString() ?? '1.2 km');
+
+    return ParkingLot(
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? 'Parking Space',
+      address: json['address']?.toString() ?? '',
+      distance: rawDistance,
+      hourlyRate: (json['pricePerHour'] as num?)?.toDouble() ?? 40.0,
+      rating: 4.6,
+      isPopular: availableSlots < 30,
+      type: formatType(json['parkingType']?.toString()),
+      hasEv: true,
+      slots: parsedSlots,
+      isOpen: json['status'] == 'ACTIVE' || json['status'] == null,
+      amenities: const ['CCTV', 'Security guards', 'Covered', 'EV Charging'],
+      imageUrl: json['imageUrl']?.toString(),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'address': address,
+    'distance': distance,
+    'hourlyRate': hourlyRate,
+    'rating': rating,
+    'isPopular': isPopular,
+    'type': type,
+    'hasEv': hasEv,
+    'slots': slots.map((s) => s.toJson()).toList(),
+    'isOpen': isOpen,
+    'amenities': amenities,
+    'imageUrl': imageUrl,
+  };
 }
 
 class Booking {
@@ -73,7 +169,7 @@ class Booking {
   String status; // 'Confirmed', 'CheckedIn', 'Completed', 'Cancelled'
   final String? customerName;
   final String? carPlate;
-  final int durationHours; // Added back for compatibility
+  final int durationHours;
 
   Booking({
     required this.bookingId,
@@ -89,4 +185,62 @@ class Booking {
     this.carPlate,
     this.durationHours = 2,
   });
+
+  factory Booking.fromJson(Map<String, dynamic> json) {
+    String parseStatus(String? statusStr) {
+      switch (statusStr?.toUpperCase()) {
+        case 'CONFIRMED': return 'Confirmed';
+        case 'CHECKED_IN': return 'CheckedIn';
+        case 'COMPLETED': return 'Completed';
+        case 'CANCELLED': return 'Cancelled';
+        default: return statusStr ?? 'Confirmed';
+      }
+    }
+
+    final parkingSpace = json['parkingSpace'] as Map<String, dynamic>?;
+    final customer = json['customer'] as Map<String, dynamic>?;
+
+    final bookingDate = DateTime.tryParse(json['bookingDate']?.toString() ?? '') ?? DateTime.now();
+    final startTimeStr = json['startTime'] != null ? DateTime.tryParse(json['startTime'].toString()) : null;
+    final endTimeStr = json['endTime'] != null ? DateTime.tryParse(json['endTime'].toString()) : null;
+
+    String formattedTimeRange = '14:00 - 16:00';
+    if (startTimeStr != null && endTimeStr != null) {
+      final startH = startTimeStr.hour.toString().padLeft(2, '0');
+      final startM = startTimeStr.minute.toString().padLeft(2, '0');
+      final endH = endTimeStr.hour.toString().padLeft(2, '0');
+      final endM = endTimeStr.minute.toString().padLeft(2, '0');
+      formattedTimeRange = '$startH:$startM - $endH:$endM';
+    }
+
+    return Booking(
+      bookingId: json['id']?.toString() ?? json['qrCode']?.toString() ?? '',
+      lotName: parkingSpace?['name']?.toString() ?? json['lotName']?.toString() ?? 'Parking Lot',
+      lotAddress: parkingSpace?['address']?.toString() ?? json['lotAddress']?.toString() ?? '',
+      slotId: json['slotNumber']?.toString() ?? json['slotId']?.toString() ?? 'A-01',
+      date: bookingDate,
+      timeRange: formattedTimeRange,
+      totalAmount: (json['totalAmount'] as num?)?.toDouble() ?? 0.0,
+      qrData: json['qrCode']?.toString() ?? json['id']?.toString() ?? '',
+      status: parseStatus(json['status']?.toString()),
+      customerName: customer?['name']?.toString() ?? json['customerName']?.toString(),
+      carPlate: json['carPlate']?.toString() ?? 'TN-01-AB-1234',
+      durationHours: (json['duration'] as num?)?.toInt() ?? 2,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': bookingId,
+    'lotName': lotName,
+    'lotAddress': lotAddress,
+    'slotNumber': slotId,
+    'bookingDate': date.toIso8601String(),
+    'timeRange': timeRange,
+    'totalAmount': totalAmount,
+    'qrCode': qrData,
+    'status': status.toUpperCase(),
+    'customerName': customerName,
+    'carPlate': carPlate,
+    'duration': durationHours,
+  };
 }
