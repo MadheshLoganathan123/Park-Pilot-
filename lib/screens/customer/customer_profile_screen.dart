@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
-
 import '../../models/user_profile.dart';
 import '../../services/parking_data_service.dart';
-// profile image uploads handled in EditProfileScreen via ProfileImageStorageService
-// Profile editor dialog remains available but this screen navigates to full-screen editor.
 import '../login_screen.dart';
 import 'edit_profile_screen.dart';
 import 'my_vehicles_screen.dart';
@@ -19,7 +16,6 @@ class CustomerProfileScreen extends StatefulWidget {
 
 class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
   final _dataService = ParkingDataService();
-  bool _saving = false;
   String? _errorMessage;
 
   @override
@@ -32,17 +28,11 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     try {
       await _dataService.refreshProfile();
       if (mounted) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          setState(() => _errorMessage = null);
-        });
+        setState(() => _errorMessage = null);
       }
     } catch (_) {
       if (mounted) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          setState(() => _errorMessage = _dataService.profileError);
-        });
+        setState(() => _errorMessage = _dataService.profileError);
       }
     }
   }
@@ -50,37 +40,82 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
   Future<void> _editProfile() async {
     final profile = _dataService.profile;
     if (profile == null) return;
-    final result = await Navigator.of(context).push<bool?>(MaterialPageRoute(builder: (_) => EditProfileScreen(initial: profile)));
-    if (result != true) return;
-    // refresh profile after successful edit
-    await _loadProfile();
+    final result = await Navigator.of(context).push<bool?>(
+      MaterialPageRoute(builder: (_) => EditProfileScreen(initial: profile)),
+    );
+    if (result == true) {
+      await _loadProfile();
+    }
   }
 
-  // friendly error helper removed; ApiExceptions are handled inline now.
-
   @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-        animation: _dataService,
-        builder: (context, _) {
-          final profile = _dataService.profile;
-          final loading = _dataService.isProfileLoading && profile == null;
-          return Scaffold(
-            appBar: AppBar(
-              title: const Text('Profile', style: TextStyle(fontWeight: FontWeight.bold)),
-              actions: [
-                IconButton(
-                  onPressed: profile == null || _saving ? null : _editProfile,
-                  icon: const Icon(Icons.edit_outlined),
-                  tooltip: 'Edit profile',
-                ),
-              ],
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _dataService,
+      builder: (context, _) {
+        final profile = _dataService.profile;
+        final loading = _dataService.isProfileLoading && profile == null;
+
+        return Scaffold(
+          backgroundColor: const Color(0xFFF8FAFC),
+          appBar: AppBar(
+            backgroundColor: Colors.white,
+            elevation: 0,
+            title: const Text(
+              'My Profile',
+              style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A), fontSize: 18),
             ),
-            body: loading
-                ? const Center(child: CircularProgressIndicator())
-                : _buildBody(context, profile),
-          );
-        },
-      );
+            actions: [
+              IconButton(
+                onPressed: profile == null ? null : _editProfile,
+                icon: const Icon(Icons.edit_outlined, color: Color(0xFF005DAC)),
+                tooltip: 'Edit profile',
+              ),
+            ],
+          ),
+          body: loading
+              ? _buildLoadingSkeleton()
+              : _buildBody(context, profile),
+        );
+      },
+    );
+  }
+
+  Widget _buildLoadingSkeleton() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 90,
+            height: 90,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE2E8F0),
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            width: 140,
+            height: 18,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE2E8F0),
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: 180,
+            height: 14,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE2E8F0),
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildBody(BuildContext context, UserProfile? profile) {
     if (profile == null) {
@@ -90,11 +125,16 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.cloud_off_outlined, size: 44),
-              const SizedBox(height: 12),
-              Text(_errorMessage ?? 'We could not load your profile.', textAlign: TextAlign.center),
-              const SizedBox(height: 12),
+              const Icon(Icons.cloud_off_outlined, size: 48, color: Color(0xFF94A3B8)),
+              const SizedBox(height: 14),
+              Text(
+                _errorMessage ?? 'Unable to connect to profile service.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Color(0xFF64748B), fontSize: 14),
+              ),
+              const SizedBox(height: 16),
               FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF005DAC)),
                 onPressed: _dataService.isProfileLoading ? null : _loadProfile,
                 icon: const Icon(Icons.refresh),
                 label: const Text('Try again'),
@@ -106,59 +146,274 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     }
 
     final imageUrl = profile.profileImage;
-    final initial = profile.name.isNotEmpty ? profile.name[0].toUpperCase() : 'P';
+    final name = profile.name.isNotEmpty ? profile.name : 'ParkPilot User';
+
     return RefreshIndicator(
       onRefresh: _loadProfile,
+      color: const Color(0xFF005DAC),
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          Center(
-            child: CircleAvatar(
-              radius: 50,
-              backgroundColor: const Color(0xFF005DAC),
-              backgroundImage: imageUrl == null ? null : NetworkImage(imageUrl),
-              child: imageUrl == null
-                  ? Text(initial, style: const TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.bold))
-                  : null,
+          // Profile Header Card with Name-Hashed Gradient Avatar
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                Center(
+                  child: imageUrl != null && imageUrl.isNotEmpty
+                      ? CircleAvatar(
+                          radius: 46,
+                          backgroundImage: NetworkImage(imageUrl),
+                        )
+                      : _buildNameGradientAvatar(name),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  name,
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  profile.email,
+                  style: const TextStyle(color: Color(0xFF64748B), fontSize: 13),
+                ),
+                if (profile.phone?.isNotEmpty ?? false) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    profile.phone!,
+                    style: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                  ),
+                ],
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFDBEAFE),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    profile.role == 'PROVIDER' ? 'Parking Provider' : 'Customer Account',
+                    style: const TextStyle(
+                      color: Color(0xFF005DAC),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 16),
-          Center(child: Text(profile.name, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold))),
-          Center(child: Text(profile.email, style: const TextStyle(color: Colors.grey))),
-          if (profile.phone?.isNotEmpty ?? false)
-            Center(child: Text(profile.phone!, style: const TextStyle(color: Colors.grey))),
-          const SizedBox(height: 8),
-          Center(child: Chip(label: Text(profile.role == 'PROVIDER' ? 'Parking Provider' : 'Customer'))),
-          const SizedBox(height: 24),
-          _profileItem(Icons.person_outline, 'Edit profile', _saving ? null : _editProfile),
-          _profileItem(Icons.directions_car_outlined, 'My Vehicles', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MyVehiclesScreen()))),
-          _profileItem(Icons.payment_outlined, 'Payment Methods', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PaymentMethodsScreen()))),
-          _profileItem(Icons.settings_outlined, 'Settings', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()))),
-          const SizedBox(height: 28),
-          if (_saving) const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator())),
-          TextButton(
-            onPressed: () async {
-              await _dataService.logout();
-              if (context.mounted) {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                  (_) => false,
-                );
-              }
-            },
-            child: const Text('Logout', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+
+          const SizedBox(height: 20),
+
+          // Menu Options
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.02),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                _profileMenuItem(
+                  icon: Icons.person_outline_rounded,
+                  label: 'Edit Profile Information',
+                  subtitle: 'Update name, phone and picture',
+                  onTap: _editProfile,
+                ),
+                const Divider(height: 1, indent: 60),
+                _profileMenuItem(
+                  icon: Icons.directions_car_outlined,
+                  label: 'My Saved Vehicles',
+                  subtitle: 'Manage license plates for fast booking',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const MyVehiclesScreen()),
+                  ),
+                ),
+                const Divider(height: 1, indent: 60),
+                _profileMenuItem(
+                  icon: Icons.payment_outlined,
+                  label: 'Payment Methods',
+                  subtitle: 'Cards, UPI and wallet options',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const PaymentMethodsScreen()),
+                  ),
+                ),
+                const Divider(height: 1, indent: 60),
+                _profileMenuItem(
+                  icon: Icons.settings_outlined,
+                  label: 'Preferences & Settings',
+                  subtitle: 'Notifications and app config',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                  ),
+                ),
+              ],
+            ),
           ),
+
+          const SizedBox(height: 24),
+
+          // Logout Button
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFFEE2E2)),
+            ),
+            child: ListTile(
+              leading: const Icon(Icons.logout_rounded, color: Color(0xFFEF4444)),
+              title: const Text(
+                'Log Out',
+                style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.bold, fontSize: 15),
+              ),
+              subtitle: const Text('Sign out from this device', style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
+              trailing: const Icon(Icons.chevron_right, color: Color(0xFFEF4444)),
+              onTap: () async {
+                await _dataService.logout();
+                if (context.mounted) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    (_) => false,
+                  );
+                }
+              },
+            ),
+          ),
+
+          const SizedBox(height: 30),
         ],
       ),
     );
   }
 
-  Widget _profileItem(IconData icon, String label, VoidCallback? onTap) => ListTile(
-        tileColor: Colors.white,
-        leading: Icon(icon, color: const Color(0xFF005DAC)),
-        title: Text(label),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: onTap,
-      );
+  /// Unique implementation — Initials Avatar with Name-Hashed Gradient Background using CustomPainter
+  Widget _buildNameGradientAvatar(String name) {
+    final initials = name.trim().split(' ').map((p) => p.isNotEmpty ? p[0].toUpperCase() : '').take(2).join();
+    return CustomPaint(
+      size: const Size(92, 92),
+      painter: _InitialsAvatarCustomPainter(
+        name: name,
+        initials: initials.isNotEmpty ? initials : 'P',
+      ),
+    );
+  }
+
+  Widget _profileMenuItem({
+    required IconData icon,
+    required String label,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, color: const Color(0xFF005DAC), size: 22),
+      ),
+      title: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
+      subtitle: Text(subtitle, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+      trailing: const Icon(Icons.chevron_right, color: Color(0xFF94A3B8)),
+      onTap: onTap,
+    );
+  }
+}
+
+/// CustomPainter for rendering initials on a deterministic name-hashed gradient circle.
+class _InitialsAvatarCustomPainter extends CustomPainter {
+  final String name;
+  final String initials;
+
+  _InitialsAvatarCustomPainter({
+    required this.name,
+    required this.initials,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+
+    // Hash name to derive harmonious HSL gradient colors
+    final hash = name.codeUnits.fold(0, (sum, c) => sum + c);
+    final hue1 = (hash * 37) % 360;
+    final hue2 = (hue1 + 45) % 360;
+
+    final color1 = HSLColor.fromAHSL(1.0, hue1.toDouble(), 0.65, 0.45).toColor();
+    final color2 = HSLColor.fromAHSL(1.0, hue2.toDouble(), 0.70, 0.55).toColor();
+
+    // Shadow
+    final shadowPaint = Paint()
+      ..color = color1.withValues(alpha: 0.35)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+    canvas.drawCircle(center + const Offset(0, 4), radius - 2, shadowPaint);
+
+    // Gradient Background Circle
+    final rect = Rect.fromCircle(center: center, radius: radius);
+    final gradient = LinearGradient(
+      colors: [color1, color2],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    );
+
+    final paint = Paint()
+      ..shader = gradient.createShader(rect)
+      ..style = PaintingStyle.fill;
+
+    canvas.drawCircle(center, radius, paint);
+
+    // White Initials Text
+    final textSpan = TextSpan(
+      text: initials,
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 34,
+        fontWeight: FontWeight.w900,
+        letterSpacing: 1.5,
+      ),
+    );
+
+    final textPainter = TextPainter(
+      text: textSpan,
+      textAlign: TextAlign.center,
+      textDirection: TextDirection.ltr,
+    );
+
+    textPainter.layout();
+    final textOffset = Offset(
+      center.dx - (textPainter.width / 2),
+      center.dy - (textPainter.height / 2),
+    );
+
+    textPainter.paint(canvas, textOffset);
+  }
+
+  @override
+  bool shouldRepaint(covariant _InitialsAvatarCustomPainter oldDelegate) {
+    return oldDelegate.name != name || oldDelegate.initials != initials;
+  }
 }

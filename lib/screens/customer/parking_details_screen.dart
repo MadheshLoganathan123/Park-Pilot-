@@ -1,14 +1,46 @@
 import 'package:flutter/material.dart';
 import '../../models/parking_lot.dart';
+import '../../services/parking_data_service.dart';
 import 'slot_selection_screen.dart';
 
-class ParkingDetailsScreen extends StatelessWidget {
+class ParkingDetailsScreen extends StatefulWidget {
   final ParkingLot lot;
 
   const ParkingDetailsScreen({super.key, required this.lot});
 
   @override
+  State<ParkingDetailsScreen> createState() => _ParkingDetailsScreenState();
+}
+
+class _ParkingDetailsScreenState extends State<ParkingDetailsScreen> {
+  final ParkingDataService _dataService = ParkingDataService();
+  late ParkingLot _currentLot;
+  int _durationHours = 2;
+  DateTime _selectedDate = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _currentLot = widget.lot;
+    _refreshLotData();
+  }
+
+  void _refreshLotData() async {
+    final fresh = await _dataService.fetchLotDetails(widget.lot.id);
+    if (fresh != null && mounted) {
+      setState(() {
+        _currentLot = fresh;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final effectiveRate = _dataService.calculateEffectiveRate(_currentLot.hourlyRate);
+    final available = _currentLot.availableSlotsCount;
+    final total = _currentLot.totalSlotsCount > 0 ? _currentLot.totalSlotsCount : 10;
+    final occupancy = (total - available) / total;
+
     return Scaffold(
       body: Stack(
         children: [
@@ -16,7 +48,7 @@ class ParkingDetailsScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header Image
+                // Header Image / Gradient Banner
                 Stack(
                   children: [
                     Container(
@@ -24,9 +56,16 @@ class ParkingDetailsScreen extends StatelessWidget {
                       width: double.infinity,
                       decoration: const BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [Color(0xFFDBEAFE), Color(0xFFE0F2FE)],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
+                          colors: [Color(0xFF005DAC), Color(0xFF0284C7)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                      child: Center(
+                        child: Icon(
+                          _currentLot.type.contains('Multi') ? Icons.apartment_rounded : Icons.local_parking_rounded,
+                          size: 90,
+                          color: Colors.white.withValues(alpha: 0.8),
                         ),
                       ),
                     ),
@@ -39,7 +78,7 @@ class ParkingDetailsScreen extends StatelessWidget {
                             _buildCircleIconButton(Icons.arrow_back, onTap: () => Navigator.pop(context)),
                             Row(
                               children: [
-                                _buildCircleIconButton(Icons.share_outlined),
+                                _buildCircleIconButton(Icons.refresh_rounded, onTap: _refreshLotData),
                                 const SizedBox(width: 12),
                                 _buildCircleIconButton(Icons.favorite_border),
                               ],
@@ -69,12 +108,14 @@ class ParkingDetailsScreen extends StatelessWidget {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                lot.name,
-                                style: const TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF1E293B),
+                              Expanded(
+                                child: Text(
+                                  _currentLot.name,
+                                  style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1E293B),
+                                  ),
                                 ),
                               ),
                               Container(
@@ -88,7 +129,7 @@ class ParkingDetailsScreen extends StatelessWidget {
                                     const Icon(Icons.star, color: Color(0xFF005DAC), size: 14),
                                     const SizedBox(width: 4),
                                     Text(
-                                      '${lot.rating}',
+                                      '${_currentLot.rating}',
                                       style: const TextStyle(color: Color(0xFF005DAC), fontWeight: FontWeight.bold, fontSize: 12),
                                     ),
                                   ],
@@ -101,23 +142,35 @@ class ParkingDetailsScreen extends StatelessWidget {
                             children: [
                               const Icon(Icons.location_on_outlined, size: 16, color: Color(0xFF64748B)),
                               const SizedBox(width: 4),
-                              Text(
-                                '${lot.address} • ${lot.distance} away',
-                                style: const TextStyle(color: Color(0xFF64748B)),
+                              Expanded(
+                                child: Text(
+                                  '${_currentLot.address} • ${_currentLot.distance} away',
+                                  style: const TextStyle(color: Color(0xFF64748B)),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
                             ],
                           ),
                           const SizedBox(height: 24),
-                          // Capacity Status
+
+                          // Animated Capacity Status & Occupancy Ring
                           Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(16),
-                              border: const Border(left: BorderSide(color: Color(0xFF22C55E), width: 4)),
+                              border: Border(
+                                left: BorderSide(
+                                  color: available > 10
+                                      ? const Color(0xFF22C55E)
+                                      : (available > 0 ? const Color(0xFFF59E0B) : const Color(0xFFEF4444)),
+                                  width: 4,
+                                ),
+                              ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.02),
+                                  color: Colors.black.withValues(alpha: 0.03),
                                   blurRadius: 10,
                                   offset: const Offset(0, 4),
                                 ),
@@ -129,127 +182,171 @@ class ParkingDetailsScreen extends StatelessWidget {
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text(
-                                      '12 Slots Available',
-                                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                    TweenAnimationBuilder<int>(
+                                      tween: IntTween(begin: 0, end: available),
+                                      duration: const Duration(milliseconds: 1000),
+                                      builder: (context, val, _) {
+                                        return Text(
+                                          '$val / $total Slots Available',
+                                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                                        );
+                                      },
                                     ),
+                                    const SizedBox(height: 2),
                                     Text(
-                                      'Updated just now',
-                                      style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                                      'Live occupancy: ${(occupancy * 100).toInt()}% full',
+                                      style: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
                                     ),
                                   ],
                                 ),
-                                const Icon(Icons.check_circle, color: Color(0xFF22C55E)),
+                                SizedBox(
+                                  width: 48,
+                                  height: 48,
+                                  child: Stack(
+                                    children: [
+                                      CircularProgressIndicator(
+                                        value: (total - available) / total,
+                                        backgroundColor: const Color(0xFFE2E8F0),
+                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                          available > 10
+                                              ? const Color(0xFF22C55E)
+                                              : (available > 0 ? const Color(0xFFF59E0B) : const Color(0xFFEF4444)),
+                                        ),
+                                        strokeWidth: 5,
+                                      ),
+                                      Center(
+                                        child: Text(
+                                          '$available',
+                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E293B)),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ],
                             ),
                           ),
                           const SizedBox(height: 24),
+
                           // Info Boxes
                           Row(
                             children: [
-                              _buildInfoBox(Icons.payments_outlined, 'Price', '₹${lot.hourlyRate.toInt()}/hr'),
+                              _buildInfoBox(Icons.payments_outlined, 'Price', '₹${effectiveRate.toInt()}/hr'),
                               const SizedBox(width: 12),
-                              _buildInfoBox(Icons.access_time, 'Hours', '24 Hrs'),
+                              _buildInfoBox(Icons.access_time, 'Hours', '24/7'),
                               const SizedBox(width: 12),
-                              _buildInfoBox(Icons.verified_user_outlined, 'Security', 'Secure'),
+                              _buildInfoBox(Icons.verified_user_outlined, 'Security', 'Guarded'),
                             ],
                           ),
-                          const SizedBox(height: 32),
+                          const SizedBox(height: 28),
+
                           const Text(
                             'Amenities',
-                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 12),
                           Wrap(
-                            spacing: 12,
-                            runSpacing: 12,
+                            spacing: 10,
+                            runSpacing: 10,
                             children: [
-                              _buildAmenityChip(Icons.videocam_outlined, 'CCTV'),
-                              _buildAmenityChip(Icons.shield_outlined, 'Security guards'),
-                              _buildAmenityChip(Icons.home_outlined, 'Covered'),
+                              _buildAmenityChip(Icons.videocam_outlined, 'CCTV Surveillance'),
+                              _buildAmenityChip(Icons.shield_outlined, 'Security Guards'),
+                              _buildAmenityChip(Icons.home_outlined, 'Covered Parking'),
+                              _buildAmenityChip(Icons.bolt, 'EV Fast Charging'),
                             ],
                           ),
-                          const SizedBox(height: 32),
+                          const SizedBox(height: 28),
+
                           const Text(
-                            'Book a Slot',
-                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                            'Booking Details',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                           ),
-                          const SizedBox(height: 16),
-                          // Date Picker
+                          const SizedBox(height: 14),
+
+                          // Date Picker Button
+                          GestureDetector(
+                            onTap: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: _selectedDate,
+                                firstDate: DateTime.now(),
+                                lastDate: DateTime.now().add(const Duration(days: 14)),
+                              );
+                              if (picked != null) {
+                                setState(() => _selectedDate = picked);
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.calendar_today_outlined, color: Color(0xFF005DAC), size: 20),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year} (Today)',
+                                        style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
+                                      ),
+                                    ],
+                                  ),
+                                  const Icon(Icons.edit_calendar_rounded, color: Color(0xFF64748B), size: 18),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+
+                          // Duration Selector
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(color: const Color(0xFFE2E8F0)),
                             ),
-                            child: const Row(
+                            child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Row(
+                                const Row(
                                   children: [
-                                    Icon(Icons.calendar_today_outlined, color: Color(0xFF64748B), size: 20),
+                                    Icon(Icons.timer_outlined, color: Color(0xFF005DAC), size: 20),
                                     SizedBox(width: 12),
-                                    Text('Today, 24 Oct', style: TextStyle(fontWeight: FontWeight.w500)),
+                                    Text('Duration', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1E293B))),
                                   ],
                                 ),
-                                Icon(Icons.keyboard_arrow_down, color: Color(0xFF64748B)),
+                                Row(
+                                  children: [
+                                    IconButton(
+                                      onPressed: _durationHours > 1 ? () => setState(() => _durationHours--) : null,
+                                      icon: const Icon(Icons.remove_circle_outline, color: Color(0xFF005DAC)),
+                                    ),
+                                    Text(
+                                      '$_durationHours hr${_durationHours > 1 ? 's' : ''}',
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF005DAC)),
+                                    ),
+                                    IconButton(
+                                      onPressed: _durationHours < 12 ? () => setState(() => _durationHours++) : null,
+                                      icon: const Icon(Icons.add_circle_outline, color: Color(0xFF005DAC)),
+                                    ),
+                                  ],
+                                ),
                               ],
                             ),
                           ),
-                          const SizedBox(height: 12),
-                          // Time & Duration
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                                  ),
-                                  child: const Row(
-                                    children: [
-                                      Icon(Icons.access_time, color: Color(0xFF64748B), size: 20),
-                                      SizedBox(width: 12),
-                                      Text('10:00 AM', style: TextStyle(fontWeight: FontWeight.w500)),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                                  ),
-                                  child: const Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Icon(Icons.dark_mode_outlined, color: Color(0xFF64748B), size: 20),
-                                          SizedBox(width: 12),
-                                          Text('2 Hours', style: TextStyle(fontWeight: FontWeight.w500)),
-                                        ],
-                                      ),
-                                      Icon(Icons.add, color: Color(0xFF64748B), size: 18),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 24),
-                          // Total Price Card
+                          const SizedBox(height: 20),
+
+                          // Total Price Summary Card
                           Container(
-                            padding: const EdgeInsets.all(20),
+                            padding: const EdgeInsets.all(18),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF1F5F9).withValues(alpha: 0.5),
+                              color: const Color(0xFFF1F5F9),
                               borderRadius: BorderRadius.circular(16),
                             ),
                             child: Row(
@@ -258,22 +355,29 @@ class ParkingDetailsScreen extends StatelessWidget {
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text('Total Price (2 hrs)', style: TextStyle(color: Color(0xFF64748B), fontSize: 13)),
+                                    Text('Estimated Cost ($_durationHours hrs)', style: const TextStyle(color: Color(0xFF64748B), fontSize: 13)),
                                     const SizedBox(height: 4),
                                     Text(
-                                      '₹${(lot.hourlyRate * 2).toInt()}',
+                                      '₹${(effectiveRate * _durationHours).toInt()}',
                                       style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
                                     ),
                                   ],
                                 ),
-                                TextButton(
-                                  onPressed: () {},
-                                  child: const Text('View details', style: TextStyle(color: Color(0xFF005DAC), fontWeight: FontWeight.bold)),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFDBEAFE),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    '₹${effectiveRate.toInt()}/hr',
+                                    style: const TextStyle(color: Color(0xFF005DAC), fontWeight: FontWeight.bold, fontSize: 13),
+                                  ),
                                 ),
                               ],
                             ),
                           ),
-                          const SizedBox(height: 100), // Space for bottom button
+                          const SizedBox(height: 100),
                         ],
                       ),
                     ),
@@ -282,7 +386,7 @@ class ParkingDetailsScreen extends StatelessWidget {
               ],
             ),
           ),
-          // Bottom Button
+          // Bottom Reserve Button
           Align(
             alignment: Alignment.bottomCenter,
             child: Container(
@@ -296,19 +400,24 @@ class ParkingDetailsScreen extends StatelessWidget {
               ),
               child: ElevatedButton(
                 onPressed: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => SlotSelectionScreen(lot: lot)));
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SlotSelectionScreen(lot: _currentLot),
+                    ),
+                  );
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF005DAC),
                   foregroundColor: Colors.white,
                   minimumSize: const Size(double.infinity, 56),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   elevation: 0,
                 ),
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('Reserve Parking', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    Text('Select Parking Slot', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     SizedBox(width: 8),
                     Icon(Icons.arrow_forward, size: 20),
                   ],
@@ -340,8 +449,9 @@ class ParkingDetailsScreen extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9).withValues(alpha: 0.5),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
         ),
         child: Column(
           children: [
@@ -358,7 +468,7 @@ class ParkingDetailsScreen extends StatelessWidget {
 
   Widget _buildAmenityChip(IconData icon, String label) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -367,9 +477,9 @@ class ParkingDetailsScreen extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 18, color: const Color(0xFF1E293B)),
-          const SizedBox(width: 8),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
+          Icon(icon, size: 16, color: const Color(0xFF005DAC)),
+          const SizedBox(width: 6),
+          Text(label, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13, color: Color(0xFF1E293B))),
         ],
       ),
     );

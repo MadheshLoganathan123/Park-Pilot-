@@ -47,3 +47,30 @@ export async function getProviderRevenueStats(req: Request, res: Response, next:
     next(error);
   }
 }
+
+export async function updateProviderSettings(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id: providerId } = req.params;
+
+    if (req.user?.id !== providerId) {
+      throw new AppError('Unauthorized: You can only update settings for your own provider account.', 403);
+    }
+
+    const result = await providerService.updateProviderSettings(providerId, req.body);
+    return sendSuccess(res, result, 'Provider settings updated successfully');
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function updateSlotStatus(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { spaceId, slotId } = req.params;
+    const { status } = req.body;
+
+    const result = await providerService.updateSlotStatus(spaceId, slotId, status);
+    return sendSuccess(res, result, 'Slot status updated successfully');
+  } catch (error) {
+    next(error);
+  }
+}

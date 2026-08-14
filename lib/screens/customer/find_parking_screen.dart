@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../models/parking_lot.dart';
 import '../../services/parking_data_service.dart';
 import 'parking_details_screen.dart';
 import 'slot_selection_screen.dart';
@@ -12,6 +13,9 @@ class FindParkingScreen extends StatefulWidget {
 
 class _FindParkingScreenState extends State<FindParkingScreen> {
   final ParkingDataService _dataService = ParkingDataService();
+  final TextEditingController _searchController = TextEditingController();
+  String _selectedFilter = 'Nearest'; // 'Nearest', 'Price', 'Availability', 'Rating'
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -19,6 +23,36 @@ class _FindParkingScreenState extends State<FindParkingScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _dataService.loadLots();
     });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<ParkingLot> _getFilteredAndSortedLots(List<ParkingLot> rawLots) {
+    var list = rawLots.where((lot) {
+      if (_searchQuery.isEmpty) return true;
+      final q = _searchQuery.toLowerCase();
+      return lot.name.toLowerCase().contains(q) || lot.address.toLowerCase().contains(q);
+    }).toList();
+
+    switch (_selectedFilter) {
+      case 'Price':
+        list.sort((a, b) => a.hourlyRate.compareTo(b.hourlyRate));
+        break;
+      case 'Availability':
+        list.sort((a, b) => b.availableSlotsCount.compareTo(a.availableSlotsCount));
+        break;
+      case 'Rating':
+        list.sort((a, b) => b.rating.compareTo(a.rating));
+        break;
+      case 'Nearest':
+      default:
+        break;
+    }
+    return list;
   }
 
   @override
@@ -36,6 +70,8 @@ class _FindParkingScreenState extends State<FindParkingScreen> {
       body: AnimatedBuilder(
         animation: _dataService,
         builder: (context, _) {
+          final displayLots = _getFilteredAndSortedLots(_dataService.lots);
+
           return Column(
             children: [
               const SizedBox(height: 16),
@@ -45,20 +81,35 @@ class _FindParkingScreenState extends State<FindParkingScreen> {
                   children: [
                     Expanded(
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: const Color(0xFFE2E8F0)),
                         ),
-                        child: const Row(
+                        child: Row(
                           children: [
-                            Icon(Icons.search, color: Color(0xFF94A3B8)),
-                            SizedBox(width: 12),
-                            Text(
-                              'Search destination...',
-                              style: TextStyle(color: Color(0xFF94A3B8)),
+                            const Icon(Icons.search, color: Color(0xFF94A3B8)),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextField(
+                                controller: _searchController,
+                                onChanged: (val) => setState(() => _searchQuery = val.trim()),
+                                decoration: const InputDecoration(
+                                  hintText: 'Search destination or lot...',
+                                  hintStyle: TextStyle(color: Color(0xFF94A3B8)),
+                                  border: InputBorder.none,
+                                ),
+                              ),
                             ),
+                            if (_searchQuery.isNotEmpty)
+                              IconButton(
+                                icon: const Icon(Icons.clear, size: 18, color: Color(0xFF94A3B8)),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => _searchQuery = '');
+                                },
+                              ),
                           ],
                         ),
                       ),
@@ -127,13 +178,13 @@ class _FindParkingScreenState extends State<FindParkingScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              // Horizontal Filters
+              // Horizontal Sort Filters
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
                   children: [
-                    _buildSmallFilterChip('Nearest', isSelected: true),
+                    _buildSmallFilterChip('Nearest'),
                     _buildSmallFilterChip('Price'),
                     _buildSmallFilterChip('Availability'),
                     _buildSmallFilterChip('Rating'),
@@ -143,25 +194,60 @@ class _FindParkingScreenState extends State<FindParkingScreen> {
               const SizedBox(height: 16),
               // Results List / Loading / Error
               Expanded(
-                child: _dataService.isLoading
+                child: _dataService.isLoading && _dataService.lots.isEmpty
                     ? const Center(child: CircularProgressIndicator())
-                    : RefreshIndicator(
-                        onRefresh: () => _dataService.loadLots(),
-                        child: ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          itemCount: _dataService.lots.length,
-                          itemBuilder: (context, index) {
-                            final lot = _dataService.lots[index];
-                            final avail = lot.availableSlotsCount;
-                            Color accentColor = avail > 20
-                                ? const Color(0xFF22C55E)
-                                : (avail > 5 ? const Color(0xFFFBBF24) : const Color(0xFFEF4444));
-                            String availabilityText = '$avail slots available';
+                    : displayLots.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.search_off_rounded, size: 48, color: Color(0xFF94A3B8)),
+                                const SizedBox(height: 8),
+                                const Text('No parking lots match your criteria', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                                const SizedBox(height: 12),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() {
+                                      _searchQuery = '';
+                                      _selectedFilter = 'Nearest';
+                                    });
+                                    _dataService.loadLots();
+                                  },
+                                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF005DAC)),
+                                  child: const Text('Reset Filters', style: TextStyle(color: Colors.white)),
+                                ),
+                              ],
+                            ),
+                          )
+                        : RefreshIndicator(
+                            onRefresh: () => _dataService.loadLots(),
+                            child: ListView.builder(
+                              padding: const EdgeInsets.symmetric(horizontal: 20),
+                              itemCount: displayLots.length,
+                              itemBuilder: (context, index) {
+                                final lot = displayLots[index];
+                                final avail = lot.availableSlotsCount;
+                                final total = lot.totalSlotsCount;
+                                final ratio = total > 0 ? (avail / total) : 0.0;
 
-                            return _buildSearchLotCard(context, lot, accentColor, availabilityText);
-                          },
-                        ),
-                      ),
+                                Color accentColor;
+                                String availabilityBadge;
+                                if (avail == 0) {
+                                  accentColor = const Color(0xFFEF4444);
+                                  availabilityBadge = '🔴 Full ($avail free)';
+                                } else if (ratio < 0.20) {
+                                  accentColor = const Color(0xFFF59E0B);
+                                  availabilityBadge = '🟡 Limited ($avail free)';
+                                } else {
+                                  accentColor = const Color(0xFF22C55E);
+                                  availabilityBadge = '🟢 Available ($avail free)';
+                                }
+
+                                return _buildSearchLotCard(context, lot, accentColor, availabilityBadge);
+                              },
+                            ),
+                          ),
               ),
             ],
           );
@@ -170,21 +256,25 @@ class _FindParkingScreenState extends State<FindParkingScreen> {
     );
   }
 
-  Widget _buildSmallFilterChip(String label, {bool isSelected = false}) {
-    return Container(
-      margin: const EdgeInsets.only(right: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: isSelected ? const Color(0xFFDBEAFE) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: isSelected ? const Color(0xFF005DAC) : const Color(0xFFE2E8F0)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: isSelected ? const Color(0xFF005DAC) : const Color(0xFF64748B),
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-          fontSize: 14,
+  Widget _buildSmallFilterChip(String label) {
+    final isSelected = _selectedFilter == label;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedFilter = label),
+      child: Container(
+        margin: const EdgeInsets.only(right: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFDBEAFE) : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: isSelected ? const Color(0xFF005DAC) : const Color(0xFFE2E8F0)),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? const Color(0xFF005DAC) : const Color(0xFF64748B),
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            fontSize: 14,
+          ),
         ),
       ),
     );
@@ -309,6 +399,7 @@ class _FindParkingScreenState extends State<FindParkingScreen> {
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () {
+                      _dataService.addRecentSearch(lot.name);
                       Navigator.push(context, MaterialPageRoute(builder: (context) => ParkingDetailsScreen(lot: lot)));
                     },
                     style: ElevatedButton.styleFrom(
@@ -324,6 +415,7 @@ class _FindParkingScreenState extends State<FindParkingScreen> {
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () {
+                      _dataService.addRecentSearch(lot.name);
                       Navigator.push(
                         context,
                         MaterialPageRoute(

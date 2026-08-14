@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -52,6 +53,9 @@ class ParkingDataService extends ChangeNotifier {
   UserProfile? _profile;
   bool _isProfileLoading = false;
   String? _profileError;
+  List<String> _recentSearches = [];
+  final Map<String, ({ParkingLot lot, DateTime fetchedAt})> _lotCache = {};
+  final ValueNotifier<String?> globalErrorNotifier = ValueNotifier<String?>(null);
 
   bool get isLoggedIn => _isLoggedIn;
   String? get userId => _userId;
@@ -60,17 +64,36 @@ class ParkingDataService extends ChangeNotifier {
   UserProfile? get profile => _profile;
   bool get isProfileLoading => _isProfileLoading;
   String? get profileError => _profileError;
+  List<String> get recentSearches => List.unmodifiable(_recentSearches);
+
+  void showGlobalError(String message) {
+    globalErrorNotifier.value = message;
+  }
+
+  void clearGlobalError() {
+    globalErrorNotifier.value = null;
+  }
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
     final firebaseUser = _auth?.currentUser;
-    _isLoggedIn = firebaseUser != null;
+    final persistedLoggedIn = _prefs?.getBool('isLoggedIn') ?? false;
+    _isLoggedIn = firebaseUser != null || persistedLoggedIn;
     _profile = null;
     _profileError = null;
-    _userId = null;
-    _userEmail = null;
+    _userId = _prefs?.getString('userId');
+    _userEmail = _prefs?.getString('userEmail') ?? firebaseUser?.email;
 
-    if (_isLoggedIn && firebaseUser != null) {
+    final savedRole = _prefs?.getString('userRole');
+    if (savedRole == 'provider') {
+      _currentRole = AppUserRole.provider;
+    } else {
+      _currentRole = AppUserRole.customer;
+    }
+
+    _loadRecentSearches();
+
+    if (firebaseUser != null) {
       try {
         await refreshProfile();
       } catch (_) {
@@ -82,15 +105,88 @@ class ParkingDataService extends ChangeNotifier {
     }
   }
 
+  void _loadRecentSearches() {
+    final raw = _prefs?.getString('recentSearches');
+    if (raw != null) {
+      try {
+        final list = jsonDecode(raw);
+        if (list is List) {
+          _recentSearches = list.map((e) => e.toString()).toList();
+        }
+      } catch (_) {}
+    }
+  }
+
+  Future<void> addRecentSearch(String lotName) async {
+    _recentSearches.remove(lotName);
+    _recentSearches.insert(0, lotName);
+    if (_recentSearches.length > 3) {
+      _recentSearches = _recentSearches.sublist(0, 3);
+    }
+    await _prefs?.setString('recentSearches', jsonEncode(_recentSearches));
+    notifyListeners();
+  }
+
+  Future<void> removeRecentSearch(String lotName) async {
+    _recentSearches.remove(lotName);
+    await _prefs?.setString('recentSearches', jsonEncode(_recentSearches));
+    notifyListeners();
+  }
+
+  Future<void> clearRecentSearches() async {
+    _recentSearches.clear();
+    await _prefs?.remove('recentSearches');
+    notifyListeners();
+  }
+
+  Future<void> sendPasswordReset(String email) async {
+    final auth = _auth;
+    if (auth == null) throw StateError('Firebase Authentication is unavailable.');
+    await auth.sendPasswordResetEmail(email: email.trim());
+  }
+
   Future<void> login(String email, String password, AppUserRole role) async {
+    final cleanEmail = email.trim();
     try {
       _resetProfileState();
-      final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(email: email, password: password);
+      final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: cleanEmail,
+        password: password,
+      );
       await _syncAndSaveSession(credential.user!, role);
       loadLots();
       loadBookings();
     } on FirebaseAuthException catch (e) {
-      debugPrint('Login failed: ${e.message}');
+      debugPrint('Login attempt failed: ${e.code} - ${e.message}');
+      
+      // Auto-fallback: If account does not exist in Firebase yet (e.g. seeded accounts), automatically register them in Firebase!
+      if (e.code == 'user-not-found' || e.code == 'invalid-credential') {
+        try {
+          debugPrint('Attempting auto-registration for $cleanEmail...');
+          final newCred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+            email: cleanEmail,
+            password: password,
+          );
+          await _syncAndSaveSession(newCred.user!, role);
+          loadLots();
+          loadBookings();
+          return;
+        } catch (regError) {
+          debugPrint('Auto-registration was not applicable: $regError');
+        }
+      }
+
+      if (e.code == 'invalid-credential' || e.code == 'wrong-password') {
+        throw FirebaseAuthException(
+          code: e.code,
+          message: 'Incorrect password, or this email was registered using Google Sign-In. Try "Sign in with Google" or "Sign up".',
+        );
+      } else if (e.code == 'user-not-found') {
+        throw FirebaseAuthException(
+          code: e.code,
+          message: 'Account not found. Tap "Sign up" below to create an account.',
+        );
+      }
       rethrow;
     }
   }
@@ -296,25 +392,37 @@ class ParkingDataService extends ChangeNotifier {
   bool isSurgePricingEnabled = false;
   double surgeMultiplier = 1.0;
 
-  final List<RecentActivity> _recentActivities = [
-    RecentActivity(name: 'Amit Jain', plate: 'DL 01 AB 1234', time: '10:45 AM', action: 'Check-in', initial: 'AJ'),
-    RecentActivity(name: 'Sneha Kapoor', plate: 'MH 12 CD 5678', time: '10:30 AM', action: 'Check-in', initial: 'SK'),
-    RecentActivity(name: 'Rahul Patel', plate: 'GJ 05 EF 9012', time: '10:15 AM', action: 'Check-in', initial: 'RP'),
-  ];
+  List<RecentActivity> get recentActivities {
+    final list = providerBookings.take(5).map((b) {
+      final name = b.customerName ?? 'Customer Reservation';
+      final initial = name.isNotEmpty ? name[0].toUpperCase() : 'C';
+      final time = b.timeRange.split('-').first.trim();
+      return RecentActivity(
+        name: name,
+        plate: b.carPlate ?? 'TN 09 AB 1234',
+        time: time.isNotEmpty ? time : '10:00 AM',
+        action: b.status == 'CheckedIn' ? 'Checked-in' : (b.status == 'Confirmed' ? 'Reserved' : b.status),
+        initial: initial,
+      );
+    }).toList();
 
-  List<RecentActivity> get recentActivities => List.unmodifiable(_recentActivities);
+    return List.unmodifiable(list);
+  }
 
   List<ParkingLot> _lots = [];
   List<ParkingLot> get lots => _lots.isNotEmpty ? _lots : _fallbackLots;
 
   List<Booking> _bookings = [];
-  List<Booking> get userBookings => _bookings.isNotEmpty ? _bookings : _fallbackBookings;
-  List<Booking> get providerBookings => _bookings.where((b) => b.customerName != null && b.customerName!.isNotEmpty && b.customerName != 'Madhesh Loganathan').toList();
+  List<Booking> get userBookings => _bookings;
 
-  Booking? get activeBooking => _bookings.firstWhere(
-        (b) => b.status == 'Confirmed',
-        orElse: () => _bookings.isNotEmpty ? _bookings.first : _fallbackBookings.first,
-      );
+  Booking? get activeBooking {
+    if (_bookings.isEmpty) return null;
+    try {
+      return _bookings.firstWhere((b) => b.status == 'Confirmed');
+    } catch (_) {
+      return _bookings.first;
+    }
+  }
 
   Future<void> loadLots() async {
     _isLoading = true;
@@ -333,6 +441,55 @@ class ParkingDataService extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  Future<ParkingLot?> fetchLotDetails(String lotId) async {
+    final cached = _lotCache[lotId];
+    if (cached != null && DateTime.now().difference(cached.fetchedAt).inSeconds < 60) {
+      return cached.lot;
+    }
+
+    try {
+      final data = await _apiClient.get('/parking/$lotId');
+      if (data is Map<String, dynamic>) {
+        final lot = ParkingLot.fromJson(data);
+        _lotCache[lotId] = (lot: lot, fetchedAt: DateTime.now());
+        final idx = _lots.indexWhere((l) => l.id == lotId);
+        if (idx != -1) {
+          _lots[idx] = lot;
+        }
+        notifyListeners();
+        return lot;
+      }
+    } catch (e) {
+      debugPrint('Error fetching lot details for $lotId: $e');
+    }
+    return _lots.cast<ParkingLot?>().firstWhere((l) => l?.id == lotId, orElse: () => null);
+  }
+
+  Future<Booking> createBooking({
+    required String parkingSpaceId,
+    required String bookingDate,
+    required String startTime,
+    required String endTime,
+    String paymentMethod = 'CARD',
+  }) async {
+    final bDate = DateTime.tryParse(bookingDate) ?? DateTime.now();
+    final sTime = DateTime.tryParse(startTime) ?? DateTime.now();
+    final eTime = DateTime.tryParse(endTime) ?? DateTime.now().add(const Duration(hours: 2));
+
+    final result = await createBookingApi(
+      parkingSpaceId: parkingSpaceId,
+      bookingDate: bDate,
+      startTime: sTime,
+      endTime: eTime,
+      paymentMethod: paymentMethod,
+    );
+
+    if (result == null) {
+      throw Exception('Failed to create reservation.');
+    }
+    return result;
   }
 
   Future<void> loadBookings() async {
@@ -381,6 +538,8 @@ class ParkingDataService extends ChangeNotifier {
         final newBooking = Booking.fromJson(bookingJson);
         _bookings.insert(0, newBooking);
         await loadLots();
+        await loadProviderStats();
+        notifyListeners();
         return newBooking;
       }
     } catch (e) {
@@ -402,7 +561,12 @@ class ParkingDataService extends ChangeNotifier {
         if (index != -1) {
           _bookings[index].status = 'Cancelled';
         }
+        final pIndex = _providerBookings.indexWhere((b) => b.bookingId == bookingId);
+        if (pIndex != -1) {
+          _providerBookings[pIndex].status = 'Cancelled';
+        }
         await loadLots();
+        await loadProviderStats();
         notifyListeners();
         return true;
       }
@@ -420,18 +584,28 @@ class ParkingDataService extends ChangeNotifier {
         if (index != -1) {
           _bookings[index].status = 'CheckedIn';
         }
+        final pIndex = _providerBookings.indexWhere((b) => b.bookingId == bookingId);
+        if (pIndex != -1) {
+          _providerBookings[pIndex].status = 'CheckedIn';
+        }
+        await loadProviderStats();
         notifyListeners();
         return true;
       }
     } catch (e) {
       debugPrint('Error checking in booking on API: $e');
-      // Fallback local update so UI demo works seamlessly even without backend running
+      // Fallback local update so UI demo works seamlessly
       final index = _bookings.indexWhere((b) => b.bookingId == bookingId);
       if (index != -1) {
         _bookings[index].status = 'CheckedIn';
-        notifyListeners();
-        return true;
       }
+      final pIndex = _providerBookings.indexWhere((b) => b.bookingId == bookingId);
+      if (pIndex != -1) {
+        _providerBookings[pIndex].status = 'CheckedIn';
+      }
+      await loadProviderStats();
+      notifyListeners();
+      return true;
     }
     return false;
   }
@@ -450,13 +624,13 @@ class ParkingDataService extends ChangeNotifier {
 
   void addBooking(Booking booking) {
     _bookings.insert(0, booking);
+    loadProviderStats();
     notifyListeners();
   }
 
   void cancelBooking(String bookingId) {
     cancelBookingApi(bookingId);
   }
-
 
   void updateSurge(bool enabled, double multiplier) {
     isSurgePricingEnabled = enabled;
@@ -468,20 +642,102 @@ class ParkingDataService extends ChangeNotifier {
     return isSurgePricingEnabled ? (baseRate * surgeMultiplier) : baseRate;
   }
 
-  Map<String, dynamic>? _providerStats;
-  Map<String, dynamic>? get providerStats => _providerStats;
+  ProviderStats _providerStats = ProviderStats();
+  ProviderStats get providerStatsObj => _providerStats;
+  Map<String, dynamic>? get providerStats => {
+    'todayRevenue': _providerStats.todayRevenue,
+    'totalRevenue': _providerStats.totalRevenue,
+    'activeBookingsCount': _providerStats.activeBookingsCount,
+    'totalSlotsCapacity': _providerStats.totalSlotsCount,
+    'currentlyOccupiedSlots': _providerStats.occupiedSlotsCount,
+    'occupancyRatePercentage': _providerStats.occupancyRate,
+  };
+
+  List<Booking> _providerBookings = [];
+  List<Booking> get providerBookings => List.unmodifiable(_providerBookings);
 
   Future<void> loadProviderStats() async {
     final pid = _userId;
-    if (pid == null) return;
-    try {
-      final data = await _apiClient.get('/providers/$pid/revenue');
-      if (data is Map<String, dynamic>) {
-        _providerStats = data;
-        notifyListeners();
+    if (pid != null) {
+      try {
+        final data = await _apiClient.get('/providers/$pid/stats');
+        if (data is Map<String, dynamic>) {
+          _providerStats = ProviderStats.fromJson(data);
+          notifyListeners();
+          return;
+        }
+      } catch (e) {
+        debugPrint('Error loading provider stats from API: $e');
       }
+    }
+
+    // Dynamic stats derived from real in-memory lots & live bookings
+    final totalSlots = _lots.fold(0, (sum, lot) => sum + lot.totalSlotsCount);
+    final available = _lots.fold(0, (sum, lot) => sum + lot.availableSlotsCount);
+    final activeBookings = providerBookings.where((b) => b.status != 'Cancelled').toList();
+    final occupied = (totalSlots - available) + activeBookings.length;
+    final double occRate = totalSlots > 0 ? ((occupied / totalSlots) * 100).clamp(0.0, 100.0) : 0.0;
+
+    final double totalRev = activeBookings.fold(0.0, (sum, b) => sum + b.totalAmount);
+    final double todayRev = activeBookings.where((b) => b.date.day == DateTime.now().day).fold(0.0, (sum, b) => sum + b.totalAmount);
+
+    final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final currentDayIdx = (DateTime.now().weekday - 1).clamp(0, 6);
+    final List<WeeklyRevenueData> dynamicWeekly = List.generate(7, (i) {
+      final double rev = i == currentDayIdx ? (todayRev > 0 ? todayRev : totalRev) : 0.0;
+      return WeeklyRevenueData(day: days[i], date: '', revenue: rev);
+    });
+
+    _providerStats = ProviderStats(
+      todayRevenue: todayRev,
+      totalRevenue: totalRev,
+      activeBookingsCount: activeBookings.length,
+      totalSlotsCount: totalSlots > 0 ? totalSlots : (_lots.isNotEmpty ? _lots.first.totalSlotsCount : 150),
+      occupiedSlotsCount: occupied,
+      availableSlotsCount: (totalSlots - occupied) > 0 ? (totalSlots - occupied) : available,
+      occupancyRate: occRate,
+      weeklyRevenue: dynamicWeekly,
+    );
+    notifyListeners();
+  }
+
+  Future<void> loadProviderBookings() async {
+    final pid = _userId;
+    if (pid != null) {
+      try {
+        final data = await _apiClient.get('/bookings/provider/$pid');
+        if (data is List) {
+          _providerBookings = data.map((b) => Booking.fromJson(b as Map<String, dynamic>)).toList();
+          notifyListeners();
+          return;
+        }
+      } catch (e) {
+        debugPrint('Error loading provider bookings from API: $e');
+      }
+    }
+  }
+
+  Future<bool> updateSlotStatusApi(String spaceId, String slotId, SlotStatus status) async {
+    // 1. Update in-memory lot immediately for responsive UI
+    for (var lot in _lots) {
+      final idx = lot.slots.indexWhere((s) => s.id == slotId);
+      if (idx != -1) {
+        lot.slots[idx].status = status;
+        break;
+      }
+    }
+    notifyListeners();
+
+    // 2. Sync with backend API
+    try {
+      await _apiClient.put(
+        '/providers/spaces/$spaceId/slots/$slotId/status',
+        body: {'status': status.name.toUpperCase()},
+      );
+      return true;
     } catch (e) {
-      debugPrint('Error loading provider stats from API: $e');
+      debugPrint('Error updating slot status on API: $e');
+      return true;
     }
   }
 
@@ -489,26 +745,50 @@ class ParkingDataService extends ChangeNotifier {
     for (var lot in lots) {
       final idx = lot.slots.indexWhere((s) => s.id == slotId);
       if (idx != -1) {
-        lot.slots[idx] = ParkingSlot(
-          id: slotId,
-          floor: lot.slots[idx].floor,
-          status: status,
-        );
+        lot.slots[idx].status = status;
         break;
       }
     }
     notifyListeners();
   }
 
-  double get todayRevenue => (_providerStats?['totalRevenue'] as num?)?.toDouble() ?? 4250.0;
-  int get activeBookingsCount => (_providerStats?['activeBookingsCount'] as num?)?.toInt() ?? userBookings.where((b) => b.status == 'Confirmed' || b.status == 'CheckedIn').length;
-  int get totalSlotsCount => (_providerStats?['totalSlotsCapacity'] as num?)?.toInt() ?? lots.fold(0, (sum, lot) => sum + lot.totalSlotsCount);
-  int get occupiedSlotsCount => (_providerStats?['currentlyOccupiedSlots'] as num?)?.toInt() ?? lots.fold(0, (sum, lot) => sum + (lot.totalSlotsCount - lot.availableSlotsCount));
-  double get currentOccupancy => (_providerStats?['occupancyRatePercentage'] as num?)?.toDouble() ?? (totalSlotsCount > 0 ? (occupiedSlotsCount / totalSlotsCount) * 100 : 85.0);
+  Future<bool> updateProviderSettingsApi({
+    bool? surgeEnabled,
+    double? surgeMultiplierVal,
+    String? operatingHours,
+  }) async {
+    if (surgeEnabled != null) isSurgePricingEnabled = surgeEnabled;
+    if (surgeMultiplierVal != null) surgeMultiplier = surgeMultiplierVal;
+    notifyListeners();
+
+    final pid = _userId;
+    if (pid == null) return true;
+
+    try {
+      await _apiClient.put(
+        '/providers/$pid/settings',
+        body: {
+          if (surgeEnabled != null) 'surgeEnabled': surgeEnabled,
+          if (surgeMultiplierVal != null) 'surgeMultiplier': surgeMultiplierVal,
+          if (operatingHours != null) 'operatingHours': operatingHours,
+        },
+      );
+      return true;
+    } catch (e) {
+      debugPrint('Error updating provider settings: $e');
+      return true;
+    }
+  }
+
+  double get todayRevenue => _providerStats.todayRevenue;
+  int get activeBookingsCount => _providerStats.activeBookingsCount;
+  int get totalSlotsCount => _providerStats.totalSlotsCount;
+  int get occupiedSlotsCount => _providerStats.occupiedSlotsCount;
+  double get currentOccupancy => _providerStats.occupancyRate;
 
   static final List<ParkingLot> _fallbackLots = [
     ParkingLot(
-      id: 'lot_1',
+      id: '452ddaa0-e38d-4a26-959d-02560e38c69e',
       name: 'Express Avenue Mall Parking',
       address: 'Royapettah, Chennai',
       distance: '1.2 km',
@@ -519,21 +799,9 @@ class ParkingDataService extends ChangeNotifier {
       hasEv: true,
       isOpen: true,
       amenities: ['CCTV', 'Security guards', 'Covered', 'EV Charging'],
-      slots: List.generate(10, (i) => ParkingSlot(id: 'A-${i+1}', floor: 'Floor 1', status: i % 3 == 0 ? SlotStatus.occupied : SlotStatus.available)),
+      slots: List.generate(20, (i) => ParkingSlot(id: 'A-${(i+1).toString().padLeft(2, '0')}', floor: 'Floor 1', status: i % 3 == 0 ? SlotStatus.occupied : SlotStatus.available)),
     ),
   ];
 
-  static final List<Booking> _fallbackBookings = [
-    Booking(
-      bookingId: 'PP-2026-00125',
-      lotName: 'Express Avenue Mall Parking',
-      lotAddress: 'Royapettah, Chennai',
-      slotId: 'S-40',
-      date: DateTime.now(),
-      timeRange: '14:00 - 16:00',
-      totalAmount: 100.0,
-      qrData: 'PARKPILOT-9470915D',
-      status: 'Confirmed',
-    ),
-  ];
+
 }

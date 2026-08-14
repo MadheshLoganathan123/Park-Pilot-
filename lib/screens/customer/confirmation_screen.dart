@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/parking_lot.dart';
+import 'reservation_pass_screen.dart';
 
 class ConfirmationScreen extends StatelessWidget {
   final Booking? booking;
@@ -77,14 +78,22 @@ class ConfirmationScreen extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('BOOKING ID', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12, fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 4),
-                          Text(bookingId, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                        ],
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('BOOKING ID', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 4),
+                            Text(
+                              bookingId,
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
                       ),
+                      const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
@@ -144,7 +153,14 @@ class ConfirmationScreen extends StatelessWidget {
                         Row(
                           children: [
                             _buildDetailItem(Icons.grid_view, 'Slot', slotId, valueColor: const Color(0xFF005DAC)),
+                            _buildDetailItem(Icons.directions_car_outlined, 'Vehicle', booking?.carPlate ?? 'TN09AB1234'),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
                             _buildDetailItem(Icons.payments_outlined, 'Total Paid', '₹${totalAmount.toInt()}'),
+                            _buildDetailItem(Icons.verified_outlined, 'Payment', 'Card (Paid)', valueColor: const Color(0xFF16A34A)),
                           ],
                         ),
                       ],
@@ -159,7 +175,7 @@ class ConfirmationScreen extends StatelessWidget {
               padding: EdgeInsets.symmetric(horizontal: 20),
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: Text('Parking Verification', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                child: Text('Parking Verification Pass', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
               ),
             ),
             const SizedBox(height: 16),
@@ -171,42 +187,79 @@ class ConfirmationScreen extends StatelessWidget {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10),
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10),
                 ],
               ),
-              child: Center(
-                child: Container(
-                  width: 150,
-                  height: 150,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(20),
+              child: Column(
+                children: [
+                  Center(
+                    child: Container(
+                      width: 170,
+                      height: 170,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Center(
+                        child: Text(
+                          'PASS QR\n$bookingId',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF005DAC), fontSize: 13),
+                        ),
+                      ),
+                    ),
                   ),
-                  child: const Center(
-                    child: Icon(Icons.qr_code, size: 80, color: Color(0xFF64748B)),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Scan at entry gate: $slotId',
+                    style: const TextStyle(color: Color(0xFF64748B), fontSize: 13, fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 30),
+            if (booking != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ReservationPassScreen(booking: booking!),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.qr_code_2_rounded),
+                  label: const Text('View Full Entry Pass', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF005DAC),
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 54),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 12),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: ElevatedButton(
+              child: OutlinedButton(
                 onPressed: () {
                   Navigator.of(context).popUntil((route) => route.isFirst);
                 },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF005DAC),
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 56),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 52),
+                  side: const BorderSide(color: Color(0xFFCBD5E1)),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.home_outlined),
+                    Icon(Icons.home_outlined, color: Color(0xFF1E293B)),
                     SizedBox(width: 8),
-                    Text('Back to Home', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    Text('Back to Home', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
                   ],
                 ),
               ),

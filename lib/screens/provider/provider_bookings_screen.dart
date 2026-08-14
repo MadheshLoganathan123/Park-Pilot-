@@ -11,9 +11,17 @@ class ProviderBookingsScreen extends StatefulWidget {
 
 class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
   final TextEditingController _searchController = TextEditingController();
-  String _selectedTab = 'Upcoming';
+  String _selectedTab = 'Today'; // 'Today', 'This Week', 'All Time'
   String _searchQuery = '';
   final Set<String> _loadingCheckIns = {};
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ParkingDataService().loadProviderBookings();
+    });
+  }
 
   @override
   void dispose() {
@@ -37,7 +45,7 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Pass $bookingId Checked In Successfully!'),
+          content: Text('Booking $bookingId Checked In Successfully!'),
           backgroundColor: const Color(0xFF16A34A),
           behavior: SnackBarBehavior.floating,
         ),
@@ -46,15 +54,18 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
   }
 
   List<Booking> _getFilteredBookings(List<Booking> allBookings) {
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final weekStart = todayStart.subtract(Duration(days: now.weekday - 1));
+
     return allBookings.where((b) {
-      // Tab Filter
-      bool tabMatch = true;
-      if (_selectedTab == 'Upcoming') {
-        tabMatch = b.status == 'Confirmed' || b.status == 'PENDING';
-      } else if (_selectedTab == 'Checked In') {
-        tabMatch = b.status == 'CheckedIn' || b.status == 'CHECKED_IN';
-      } else if (_selectedTab == 'Completed') {
-        tabMatch = b.status == 'Completed' || b.status == 'COMPLETED' || b.status == 'Cancelled';
+      // Date Filter
+      bool dateMatch = true;
+      if (_selectedTab == 'Today') {
+        dateMatch = b.date.isAfter(todayStart.subtract(const Duration(seconds: 1))) &&
+            b.date.isBefore(todayStart.add(const Duration(days: 1)));
+      } else if (_selectedTab == 'This Week') {
+        dateMatch = b.date.isAfter(weekStart.subtract(const Duration(seconds: 1)));
       }
 
       // Search Query Filter
@@ -64,10 +75,11 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
         final nameMatch = (b.customerName ?? '').toLowerCase().contains(query);
         final slotMatch = b.slotId.toLowerCase().contains(query);
         final carMatch = (b.carPlate ?? '').toLowerCase().contains(query);
-        return tabMatch && (idMatch || nameMatch || slotMatch || carMatch);
+        final lotMatch = b.lotName.toLowerCase().contains(query);
+        return dateMatch && (idMatch || nameMatch || slotMatch || carMatch || lotMatch);
       }
 
-      return tabMatch;
+      return dateMatch;
     }).toList();
   }
 
@@ -78,43 +90,43 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
     return AnimatedBuilder(
       animation: dataService,
       builder: (context, _) {
-        final rawBookings = dataService.userBookings;
+        final rawBookings = dataService.providerBookings;
         final filteredBookings = _getFilteredBookings(rawBookings);
 
         return Scaffold(
-          backgroundColor: const Color(0xFFF7F9FC),
+          backgroundColor: const Color(0xFFF8FAFC),
           appBar: AppBar(
             title: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(6),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: const Color(0xFF005DAC),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Text('P', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                  child: const Icon(Icons.receipt_long_rounded, color: Colors.white, size: 18),
                 ),
                 const SizedBox(width: 12),
-                const Text('ParkPilot', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF005DAC))),
+                const Text('Customer Reservations', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF005DAC))),
               ],
             ),
             backgroundColor: Colors.white,
             elevation: 0,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.refresh_rounded, color: Color(0xFF005DAC)),
+                onPressed: () => dataService.loadProviderBookings(),
+              ),
+            ],
           ),
           body: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 10, 20, 16),
-                child: Text(
-                  'Customer Bookings',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
-                ),
-              ),
+              // Search Field
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(14),
@@ -128,13 +140,13 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
                         child: TextField(
                           controller: _searchController,
                           decoration: const InputDecoration(
-                            hintText: 'Search by Booking ID, Customer Name, or Slot',
+                            hintText: 'Search by Booking ID, Name, or Slot...',
                             border: InputBorder.none,
                             hintStyle: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
                           ),
                           onChanged: (val) {
                             setState(() {
-                              _searchQuery = val;
+                              _searchQuery = val.trim();
                             });
                           },
                         ),
@@ -153,43 +165,49 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+
+              // Filter Tabs (Today | This Week | All Time)
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
                   children: [
-                    _buildFilterTab('Upcoming'),
+                    Expanded(child: _buildFilterTab('Today')),
                     const SizedBox(width: 10),
-                    _buildFilterTab('Checked In'),
+                    Expanded(child: _buildFilterTab('This Week')),
                     const SizedBox(width: 10),
-                    _buildFilterTab('Completed'),
+                    Expanded(child: _buildFilterTab('All Time')),
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
+
+              // Bookings List
               Expanded(
-                child: filteredBookings.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.calendar_today_outlined, size: 48, color: Colors.grey[400]),
-                            const SizedBox(height: 12),
-                            Text(
-                              'No ${_selectedTab.toLowerCase()} bookings found.',
-                              style: const TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.bold),
-                            ),
-                          ],
+                child: RefreshIndicator(
+                  onRefresh: () => dataService.loadProviderBookings(),
+                  child: filteredBookings.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.calendar_month_outlined, size: 48, color: Colors.grey[400]),
+                              const SizedBox(height: 12),
+                              Text(
+                                'No ${_selectedTab.toLowerCase()} reservations found.',
+                                style: const TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: filteredBookings.length,
+                          itemBuilder: (context, index) {
+                            final booking = filteredBookings[index];
+                            return _buildBookingCard(booking, dataService);
+                          },
                         ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        itemCount: filteredBookings.length,
-                        itemBuilder: (context, index) {
-                          final booking = filteredBookings[index];
-                          return _buildBookingCard(booking, dataService);
-                        },
-                      ),
+                ),
               ),
             ],
           ),
@@ -207,18 +225,20 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
         });
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
           color: isSelected ? const Color(0xFF005DAC) : Colors.white,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: isSelected ? const Color(0xFF005DAC) : const Color(0xFFE2E8F0)),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? Colors.white : const Color(0xFF1E293B),
-            fontWeight: FontWeight.bold,
-            fontSize: 13,
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: isSelected ? Colors.white : const Color(0xFF475569),
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+            ),
           ),
         ),
       ),
@@ -227,21 +247,54 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
 
   Widget _buildBookingCard(Booking booking, ParkingDataService dataService) {
     final bool isLoading = _loadingCheckIns.contains(booking.bookingId);
-    final bool isCheckedIn = booking.status == 'CheckedIn' || booking.status == 'CHECKED_IN';
+    final status = booking.status.toUpperCase();
+
+    // Lifecycle Status Workflow Colors:
+    // PENDING -> Amber | CONFIRMED -> Blue | CHECKED_IN -> Green | COMPLETED -> Slate | CANCELLED -> Red
+    Color badgeBg;
+    Color badgeTextColor;
+    IconData statusIcon;
+
+    switch (status) {
+      case 'CHECKED_IN':
+      case 'CHECKEDIN':
+        badgeBg = const Color(0xFFDCFCE7);
+        badgeTextColor = const Color(0xFF166534);
+        statusIcon = Icons.check_circle_rounded;
+        break;
+      case 'COMPLETED':
+        badgeBg = const Color(0xFFF1F5F9);
+        badgeTextColor = const Color(0xFF475569);
+        statusIcon = Icons.task_alt_rounded;
+        break;
+      case 'CANCELLED':
+        badgeBg = const Color(0xFFFEE2E2);
+        badgeTextColor = const Color(0xFFDC2626);
+        statusIcon = Icons.cancel_rounded;
+        break;
+      case 'PENDING':
+        badgeBg = const Color(0xFFFEF3C7);
+        badgeTextColor = const Color(0xFFD97706);
+        statusIcon = Icons.hourglass_top_rounded;
+        break;
+      case 'CONFIRMED':
+      default:
+        badgeBg = const Color(0xFFDBEAFE);
+        badgeTextColor = const Color(0xFF005DAC);
+        statusIcon = Icons.verified_rounded;
+        break;
+    }
+
+    final isCheckInEligible = status == 'CONFIRMED' || status == 'PENDING';
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border(
-          left: BorderSide(
-            color: isCheckedIn ? const Color(0xFF16A34A) : const Color(0xFF005DAC),
-            width: 4,
-          ),
-        ),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10)],
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 3))],
+        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -249,69 +302,101 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    booking.customerName ?? 'Customer Reservation',
-                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(Icons.confirmation_number_outlined, size: 14, color: Color(0xFF64748B)),
-                      const SizedBox(width: 4),
-                      Text(booking.bookingId, style: const TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w500, fontSize: 13)),
-                    ],
-                  ),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      booking.customerName ?? 'Customer Reservation',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'ID: ${booking.bookingId}',
+                      style: const TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w500, fontSize: 12),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: isCheckedIn ? const Color(0xFFDCFCE7) : const Color(0xFFDBEAFE),
+                  color: badgeBg,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(
-                  booking.status,
-                  style: TextStyle(
-                    color: isCheckedIn ? const Color(0xFF166534) : const Color(0xFF005DAC),
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(statusIcon, size: 14, color: badgeTextColor),
+                    const SizedBox(width: 4),
+                    Text(
+                      status,
+                      style: TextStyle(
+                        color: badgeTextColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
+          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          const SizedBox(height: 14),
+
           Row(
             children: [
               Expanded(
                 child: Row(
                   children: [
-                    const Icon(Icons.access_time, size: 16, color: Color(0xFF64748B)),
+                    const Icon(Icons.grid_view_rounded, size: 16, color: Color(0xFF005DAC)),
                     const SizedBox(width: 6),
-                    Text(booking.timeRange, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
+                    Text(
+                      booking.slotId.startsWith('Slot') ? booking.slotId : 'Slot ${booking.slotId}',
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF0F172A)),
+                    ),
                   ],
                 ),
               ),
               Expanded(
                 child: Row(
                   children: [
-                    const Icon(Icons.location_on_outlined, size: 16, color: Color(0xFF64748B)),
+                    const Icon(Icons.access_time_rounded, size: 16, color: Color(0xFF64748B)),
                     const SizedBox(width: 6),
-                    Text(booking.slotId.startsWith('Slot') ? booking.slotId : 'Slot ${booking.slotId}', style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
+                    Text(
+                      booking.timeRange,
+                      style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12, color: Color(0xFF475569)),
+                    ),
                   ],
                 ),
               ),
+              Text(
+                '₹${booking.totalAmount.toInt()}',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF005DAC)),
+              ),
             ],
           ),
-          if (!isCheckedIn && booking.status != 'Cancelled') ...[
-            const SizedBox(height: 16),
+
+          if (isCheckInEligible) ...[
+            const SizedBox(height: 14),
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton(
+              child: ElevatedButton.icon(
                 onPressed: isLoading ? null : () => _handleCheckIn(booking.bookingId, dataService),
+                icon: const Icon(Icons.login_rounded, size: 18),
+                label: isLoading
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      )
+                    : const Text('Check In Vehicle', style: TextStyle(fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF005DAC),
                   foregroundColor: Colors.white,
@@ -319,13 +404,6 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   elevation: 0,
                 ),
-                child: isLoading
-                    ? const SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                      )
-                    : const Text('Check In Customer', style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ),
           ],

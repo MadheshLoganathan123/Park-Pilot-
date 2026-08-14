@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/parking_lot.dart';
 import '../../services/parking_data_service.dart';
 import 'confirmation_screen.dart';
@@ -15,11 +16,52 @@ class SlotSelectionScreen extends StatefulWidget {
   State<SlotSelectionScreen> createState() => _SlotSelectionScreenState();
 }
 
-class _SlotSelectionScreenState extends State<SlotSelectionScreen> {
+class _SlotSelectionScreenState extends State<SlotSelectionScreen> with SingleTickerProviderStateMixin {
   String? _selectedSlotId;
   int _durationHours = 2;
   String _selectedFloor = 'All Floors';
   bool _isSubmitting = false;
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+  String _selectedTimeSlot = '10:00 AM';
+  String _defaultVehicle = 'TN09AB1234';
+
+  final List<String> _timeSlots = [
+    '08:00 AM', '08:30 AM', '09:00 AM', '09:30 AM',
+    '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM',
+    '12:00 PM', '12:30 PM', '01:00 PM', '01:30 PM',
+    '02:00 PM', '02:30 PM', '03:00 PM', '03:30 PM',
+    '04:00 PM', '04:30 PM', '05:00 PM', '05:30 PM',
+    '06:00 PM', '06:30 PM', '07:00 PM', '07:30 PM',
+    '08:00 PM', '08:30 PM', '09:00 PM', '09:30 PM',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDefaultVehicle();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+    _pulseAnimation = Tween<double>(begin: 2.0, end: 4.5).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+  }
+
+  Future<void> _loadDefaultVehicle() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedPlate = prefs.getString('defaultVehicle');
+    if (savedPlate != null && savedPlate.isNotEmpty && mounted) {
+      setState(() => _defaultVehicle = savedPlate);
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -171,10 +213,41 @@ class _SlotSelectionScreenState extends State<SlotSelectionScreen> {
                           ],
                         ),
                       ),
-
                       const SizedBox(height: 16),
 
-                      // Interactive Slot Grid
+                      // Time-Slot 30-min Block Picker
+                      const Text(
+                        'Select Entry Time Block (Today)',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                      ),
+                      const SizedBox(height: 8),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: _timeSlots.map((ts) {
+                            final isSel = ts == _selectedTimeSlot;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8.0),
+                              child: ChoiceChip(
+                                label: Text(ts),
+                                selected: isSel,
+                                selectedColor: const Color(0xFF005DAC),
+                                labelStyle: TextStyle(
+                                  color: isSel ? Colors.white : const Color(0xFF475569),
+                                  fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
+                                  fontSize: 12,
+                                ),
+                                onSelected: (val) {
+                                  if (val) setState(() => _selectedTimeSlot = ts);
+                                },
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Interactive Slot Grid with Pulsing Selection Animation
                       GridView.builder(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
@@ -218,21 +291,30 @@ class _SlotSelectionScreenState extends State<SlotSelectionScreen> {
                                       _selectedSlotId = slot.id;
                                     });
                                   },
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: bgColor,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: borderColor, width: isSelected ? 2.5 : 1.5),
-                                boxShadow: isSelected
-                                    ? [
-                                        BoxShadow(
-                                          color: const Color(0xFF005DAC).withValues(alpha: 0.3),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 3),
-                                        ),
-                                      ]
-                                    : null,
-                              ),
+                            child: AnimatedBuilder(
+                              animation: _pulseAnimation,
+                              builder: (context, child) {
+                                return Container(
+                                  decoration: BoxDecoration(
+                                    color: bgColor,
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(
+                                      color: isSelected ? const Color(0xFF005DAC) : borderColor,
+                                      width: isSelected ? _pulseAnimation.value : 1.5,
+                                    ),
+                                    boxShadow: isSelected
+                                        ? [
+                                            BoxShadow(
+                                              color: const Color(0xFF005DAC).withValues(alpha: 0.4),
+                                              blurRadius: _pulseAnimation.value * 2.5,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ]
+                                        : null,
+                                  ),
+                                  child: child,
+                                );
+                              },
                               child: Stack(
                                 children: [
                                   Center(
@@ -380,6 +462,14 @@ class _SlotSelectionScreenState extends State<SlotSelectionScreen> {
                                   Text('₹${(effectiveRate * _durationHours).toStringAsFixed(0)}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                                 ],
                               ),
+                              const SizedBox(height: 6),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('Vehicle', style: TextStyle(color: Color(0xFF94A3B8))),
+                                  Text('$_defaultVehicle (Primary)', style: const TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold, fontSize: 13)),
+                                ],
+                              ),
                               const Divider(height: 20, color: Color(0xFF334155)),
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -427,51 +517,69 @@ class _SlotSelectionScreenState extends State<SlotSelectionScreen> {
                               _isSubmitting = true;
                             });
 
-                            try {
-                              final now = DateTime.now();
-                              final endTime = now.add(Duration(hours: _durationHours));
+                            // Parse time slot selected
+                            final now = DateTime.now();
+                            int startHour = 10;
+                            int startMinute = 0;
+                            final parts = _selectedTimeSlot.split(' ');
+                            if (parts.length == 2) {
+                              final timeParts = parts[0].split(':');
+                              if (timeParts.length == 2) {
+                                startHour = int.tryParse(timeParts[0]) ?? 10;
+                                startMinute = int.tryParse(timeParts[1]) ?? 0;
+                                if (parts[1] == 'PM' && startHour < 12) startHour += 12;
+                                if (parts[1] == 'AM' && startHour == 12) startHour = 0;
+                              }
+                            }
 
-                              final createdBooking = await dataService.createBookingApi(
+                            final startTime = DateTime(now.year, now.month, now.day, startHour, startMinute);
+                            final endTime = startTime.add(Duration(hours: _durationHours));
+
+                            try {
+                              final createdBooking = await dataService.createBooking(
                                 parkingSpaceId: lot.id,
-                                bookingDate: now,
-                                startTime: now,
-                                endTime: endTime,
-                                paymentMethod: 'UPI',
+                                bookingDate: now.toIso8601String(),
+                                startTime: startTime.toIso8601String(),
+                                endTime: endTime.toIso8601String(),
+                                paymentMethod: 'CARD',
                               );
 
                               if (!mounted) return;
-
-                              final finalBooking = createdBooking ?? Booking(
-                                bookingId: 'PK-${(10000 + (now.millisecondsSinceEpoch % 89999))}',
-                                lotName: lot.name,
-                                lotAddress: lot.address,
-                                slotId: _selectedSlotId!,
-                                date: now,
-                                timeRange: '${now.hour}:00 - ${now.hour + _durationHours}:00',
-                                durationHours: _durationHours,
-                                totalAmount: effectiveRate * _durationHours,
-                                qrData: 'PARKPILOT-${lot.id}-${_selectedSlotId!}',
-                              );
-
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Reserved Slot ${_selectedSlotId!} at ${lot.name}!'),
-                                  backgroundColor: const Color(0xFF005DAC),
-                                ),
-                              );
 
                               Navigator.pushReplacement(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => ConfirmationScreen(booking: finalBooking),
+                                  builder: (context) => ConfirmationScreen(booking: createdBooking),
                                 ),
                               );
                             } catch (e) {
                               if (!mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Booking Error: ${e.toString()}'),
-                                  backgroundColor: Colors.red,
+                              final errStr = e.toString().toLowerCase();
+                              String userMsg = 'Unable to complete reservation. Please try again.';
+                              if (errStr.contains('409') || errStr.contains('reserved') || errStr.contains('taken')) {
+                                userMsg = 'Someone just grabbed this spot — please pick another slot.';
+                              } else if (errStr.contains('network') || errStr.contains('socket')) {
+                                userMsg = 'Network issue detected. Check your connection and retry.';
+                              }
+
+                              showDialog(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  title: const Row(
+                                    children: [
+                                      Icon(Icons.error_outline_rounded, color: Colors.redAccent),
+                                      SizedBox(width: 8),
+                                      Text('Reservation Failed'),
+                                    ],
+                                  ),
+                                  content: Text(userMsg),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx),
+                                      child: const Text('OK'),
+                                    ),
+                                  ],
                                 ),
                               );
                             } finally {
@@ -483,10 +591,17 @@ class _SlotSelectionScreenState extends State<SlotSelectionScreen> {
                             }
                           },
                     child: _isSubmitting
-                        ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        ? const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                              ),
+                              SizedBox(width: 12),
+                              Text('Securing your spot...', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                            ],
                           )
                         : Text(
                             _selectedSlotId == null

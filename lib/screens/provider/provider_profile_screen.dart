@@ -27,6 +27,8 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
   Future<void> _loadProfile() async {
     try {
       await _dataService.refreshProfile();
+      await _dataService.loadProviderStats();
+      await _dataService.loadLots();
     } catch (_) {}
   }
 
@@ -75,27 +77,31 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
         builder: (context, _) {
           final lot = _dataService.currentProviderLot;
           final profile = _dataService.profile;
+          final stats = _dataService.providerStatsObj;
           final loading = _dataService.isProfileLoading && profile == null;
 
           return Scaffold(
+            backgroundColor: const Color(0xFFF8FAFC),
             appBar: AppBar(
-              leading: const Padding(
-                padding: EdgeInsets.all(12.0),
-                child: Text('P', style: TextStyle(color: Color(0xFF005DAC), fontWeight: FontWeight.bold, fontSize: 24)),
-              ),
-              title: const Text('Lot Settings', style: TextStyle(color: Color(0xFF005DAC), fontWeight: FontWeight.bold)),
               backgroundColor: Colors.white,
               elevation: 0,
+              title: const Text(
+                'Provider Account & Facility',
+                style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 18),
+              ),
               actions: [
                 IconButton(
                   onPressed: profile == null || _savingProfile
                       ? null
                       : () async {
-                          final res = await Navigator.push<bool?>(context, MaterialPageRoute(builder: (_) => EditProfileScreen(initial: profile)));
+                          final res = await Navigator.push<bool?>(
+                            context,
+                            MaterialPageRoute(builder: (_) => EditProfileScreen(initial: profile)),
+                          );
                           if (res == true) _loadProfile();
                         },
                   tooltip: 'Edit account profile',
-                  icon: const Icon(Icons.account_circle_outlined),
+                  icon: const Icon(Icons.edit_outlined, color: Color(0xFF005DAC)),
                 ),
               ],
             ),
@@ -103,76 +109,160 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                 ? const Center(child: CircularProgressIndicator())
                 : RefreshIndicator(
                     onRefresh: _loadProfile,
+                    color: const Color(0xFF005DAC),
                     child: SingleChildScrollView(
                       physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.all(20),
+                      padding: const EdgeInsets.all(16),
                       child: Column(
                         children: [
                           _buildAccountCard(profile),
+                          const SizedBox(height: 16),
+
+                          // Provider Financial Summary Card
+                          Container(
+                            padding: const EdgeInsets.all(18),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF005DAC), Color(0xFF0284C7)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF005DAC).withValues(alpha: 0.3),
+                                  blurRadius: 14,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'Revenue Summary',
+                                      style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600),
+                                    ),
+                                    Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 20),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          const Text("Today's Earnings", style: TextStyle(color: Colors.white70, fontSize: 11)),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            '₹${stats.todayRevenue.toInt()}',
+                                            style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Container(width: 1, height: 36, color: Colors.white24),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          const Text('Total Revenue', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            '₹${stats.totalRevenue.toInt()}',
+                                            style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 16),
+                          _buildLotHeaderCard(lot, stats),
                           const SizedBox(height: 20),
-                          _buildLotHeaderCard(lot),
-                          const SizedBox(height: 24),
-                          _buildSectionHeader(Icons.info_outline, 'Lot Details'),
-                          const SizedBox(height: 12),
-                          _buildSettingsItem(Icons.directions_car_outlined, 'Total Slots', '120'),
-                          _buildSettingsItem(Icons.payments_outlined, 'Base Rate', '₹40/hr'),
-                          _buildSettingsItem(Icons.access_time, 'Operational Hours', '24/7', valueColor: const Color(0xFF005DAC), valueBg: const Color(0xFFDBEAFE)),
-                          const SizedBox(height: 24),
-                          _buildSectionHeader(Icons.layers_outlined, 'Amenities'),
-                          const SizedBox(height: 12),
+
+                          _buildSectionHeader(Icons.layers_outlined, 'Facility Amenities'),
+                          const SizedBox(height: 10),
                           Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(20),
-                              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10)],
+                              border: Border.all(color: const Color(0xFFE2E8F0)),
                             ),
                             child: Column(
                               children: [
-                                _buildToggleItem(Icons.ev_station, 'EV Charging', true),
-                                _buildToggleItem(Icons.videocam_outlined, 'CCTV', true),
-                                _buildToggleItem(Icons.home_outlined, 'Covered Parking', false),
-                                _buildToggleItem(Icons.shield_outlined, 'Security Guards', true),
+                                _buildToggleItem(Icons.ev_station, 'EV Fast Charging Bays', true),
+                                _buildToggleItem(Icons.videocam_outlined, '24/7 CCTV & ANPR Cameras', true),
+                                _buildToggleItem(Icons.roofing_rounded, 'Covered Basement Weather Protection', true),
+                                _buildToggleItem(Icons.security_rounded, 'Security Guard Patrol', true),
                               ],
                             ),
                           ),
-                          const SizedBox(height: 24),
+
+                          const SizedBox(height: 20),
+
                           Container(
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(20),
-                              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10)],
+                              border: Border.all(color: const Color(0xFFE2E8F0)),
                             ),
                             child: Column(
                               children: [
-                                _buildLinkItem(Icons.account_balance_wallet_outlined, 'Payouts'),
-                                _buildLinkItem(Icons.badge_outlined, 'Staff Management'),
-                                _buildLinkItem(Icons.description_outlined, 'Terms of Service'),
+                                _buildLinkItem(Icons.receipt_long_outlined, 'Settlement & Bank Payouts'),
+                                const Divider(height: 1, indent: 56),
+                                _buildLinkItem(Icons.badge_outlined, 'Staff & Operator Permissions'),
+                                const Divider(height: 1, indent: 56),
+                                _buildLinkItem(Icons.description_outlined, 'Commercial Terms & Policy'),
                               ],
                             ),
                           ),
-                          const SizedBox(height: 32),
-                          if (_savingProfile) const Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()),
-                          TextButton(
-                            onPressed: () async {
-                              await _dataService.logout();
-                              if (context.mounted) {
-                                Navigator.pushAndRemoveUntil(
-                                  context,
-                                  MaterialPageRoute(builder: (context) => const LoginScreen()),
-                                  (route) => false,
-                                );
-                              }
-                            },
-                            child: const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.logout, color: Color(0xFFEF4444)),
-                                SizedBox(width: 8),
-                                Text('Logout', style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.bold, fontSize: 16)),
-                              ],
+
+                          const SizedBox(height: 28),
+
+                          if (_savingProfile)
+                            const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: CircularProgressIndicator(),
+                            ),
+
+                          // Logout Button
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: const Color(0xFFFEE2E2)),
+                            ),
+                            child: ListTile(
+                              leading: const Icon(Icons.logout_rounded, color: Color(0xFFEF4444)),
+                              title: const Text(
+                                'Log Out Provider Session',
+                                style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.bold, fontSize: 15),
+                              ),
+                              trailing: const Icon(Icons.chevron_right, color: Color(0xFFEF4444)),
+                              onTap: () async {
+                                await _dataService.logout();
+                                if (context.mounted) {
+                                  Navigator.pushAndRemoveUntil(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                                    (route) => false,
+                                  );
+                                }
+                              },
                             ),
                           ),
+
                           const SizedBox(height: 30),
                         ],
                       ),
@@ -188,7 +278,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10)],
+        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: profile == null
           ? Row(
@@ -206,7 +296,10 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                   backgroundColor: const Color(0xFF005DAC),
                   backgroundImage: profile.profileImage == null ? null : NetworkImage(profile.profileImage!),
                   child: profile.profileImage == null
-                      ? Text(profile.name.isNotEmpty ? profile.name[0].toUpperCase() : 'P', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold))
+                      ? Text(
+                          profile.name.isNotEmpty ? profile.name[0].toUpperCase() : 'P',
+                          style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                        )
                       : null,
                 ),
                 const SizedBox(width: 14),
@@ -214,140 +307,104 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(profile.name, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-                      Text(profile.email, style: const TextStyle(color: Color(0xFF64748B))),
-                      if (profile.phone?.isNotEmpty ?? false) Text(profile.phone!, style: const TextStyle(color: Color(0xFF64748B))),
+                      Text(profile.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                      const SizedBox(height: 2),
+                      Text(profile.email, style: const TextStyle(color: Color(0xFF64748B), fontSize: 12)),
+                      if (profile.phone?.isNotEmpty ?? false)
+                        Text(profile.phone!, style: const TextStyle(color: Color(0xFF64748B), fontSize: 12)),
                     ],
                   ),
                 ),
-                IconButton(onPressed: _savingProfile ? null : _editProfile, icon: const Icon(Icons.edit_outlined, color: Color(0xFF005DAC))),
+                IconButton(
+                  onPressed: _savingProfile ? null : _editProfile,
+                  icon: const Icon(Icons.edit_outlined, color: Color(0xFF005DAC)),
+                ),
               ],
             ),
     );
   }
 
-  Widget _buildLotHeaderCard(lot) {
+  Widget _buildLotHeaderCard(lot, stats) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10)],
+        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
-                width: 60,
-                height: 60,
+                width: 52,
+                height: 52,
                 decoration: BoxDecoration(
                   color: const Color(0xFFDBEAFE),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                child: const Icon(Icons.business, color: Color(0xFF005DAC), size: 30),
+                child: const Icon(Icons.business_rounded, color: Color(0xFF005DAC), size: 28),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(lot.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 4),
+                    Text(lot.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 2),
                     Row(
                       children: [
-                        const Icon(Icons.location_on_outlined, size: 14, color: Color(0xFF64748B)),
+                        const Icon(Icons.location_on_outlined, size: 13, color: Color(0xFF64748B)),
                         const SizedBox(width: 4),
-                        Expanded(child: Text(lot.address, style: const TextStyle(color: Color(0xFF64748B), fontSize: 13))),
+                        Expanded(
+                          child: Text(
+                            lot.address,
+                            style: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
                       ],
                     ),
                   ],
                 ),
               ),
-                IconButton(onPressed: () async {
-                  final profile = _dataService.profile;
-                  if (profile == null) return;
-                  final res = await Navigator.push<bool?>(context, MaterialPageRoute(builder: (_) => EditProfileScreen(initial: profile)));
-                  if (res == true) _loadProfile();
-                }, icon: const Icon(Icons.edit_outlined, color: Color(0xFF005DAC))),
             ],
           ),
-          const SizedBox(height: 20),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Stack(
-              children: [
-                Container(
-                  height: 150,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE0F2FE),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Center(
-                    child: Icon(Icons.location_city, size: 64, color: Color(0xFF005DAC)),
-                  ),
-                ),
-                Positioned(
-                  bottom: 12,
-                  left: 12,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.6),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text('Active Lot', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-              ],
-            ),
+          const SizedBox(height: 16),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _statPill('Total Capacity', '${stats.totalSlotsCount} Slots', const Color(0xFF005DAC)),
+              _statPill('Active Rate', '₹${lot.hourlyRate.toInt()}/hr', const Color(0xFF16A34A)),
+              _statPill('Live Status', 'OPEN 24/7', const Color(0xFFD97706)),
+            ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _statPill(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
+        const SizedBox(height: 3),
+        Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color)),
+      ],
     );
   }
 
   Widget _buildSectionHeader(IconData icon, String title) {
     return Row(
       children: [
-        Icon(icon, color: const Color(0xFF005DAC), size: 20),
+        Icon(icon, color: const Color(0xFF005DAC), size: 18),
         const SizedBox(width: 8),
-        Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
+        Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
       ],
-    );
-  }
-
-  Widget _buildSettingsItem(IconData icon, String label, String value, {Color? valueColor, Color? valueBg}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: const Color(0xFF64748B), size: 20),
-          const SizedBox(width: 16),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
-          const Spacer(),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: valueBg ?? Colors.transparent,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              value,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: valueColor ?? const Color(0xFF005DAC),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -357,9 +414,8 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
       child: Row(
         children: [
           Icon(icon, color: const Color(0xFF64748B), size: 20),
-          const SizedBox(width: 16),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
-          const Spacer(),
+          const SizedBox(width: 14),
+          Expanded(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13))),
           Switch(
             value: value,
             onChanged: (val) {},
@@ -373,11 +429,17 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
 
   Widget _buildLinkItem(IconData icon, String label) {
     return ListTile(
-      tileColor: Colors.white,
       leading: Icon(icon, color: const Color(0xFF005DAC), size: 20),
-      title: Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
-      trailing: const Icon(Icons.chevron_right, color: Color(0xFF64748B)),
-      onTap: () {},
+      title: Text(label, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
+      trailing: const Icon(Icons.chevron_right, color: Color(0xFF94A3B8), size: 18),
+      onTap: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$label settings is active.'),
+            duration: const Duration(seconds: 1),
+          ),
+        );
+      },
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../models/parking_lot.dart';
 import '../../services/parking_data_service.dart';
@@ -31,8 +32,13 @@ class ReservationPassScreen extends StatelessWidget {
               IconButton(
                 icon: const Icon(Icons.share_rounded),
                 onPressed: () {
+                  final passText = 'PARKPILOT::BOOKING::${booking.bookingId}';
+                  Clipboard.setData(ClipboardData(text: passText));
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Pass QR shared successfully!')),
+                    SnackBar(
+                      content: Text('Pass code copied to clipboard: ${booking.bookingId}'),
+                      backgroundColor: const Color(0xFF005DAC),
+                    ),
                   );
                 },
               ),
@@ -70,29 +76,34 @@ class ReservationPassScreen extends StatelessWidget {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'PARKPILOT PASS',
-                                  style: TextStyle(
-                                    color: Color(0xFFBAE6FD),
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 1.0,
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'PARKPILOT PASS',
+                                    style: TextStyle(
+                                      color: Color(0xFFBAE6FD),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1.0,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  booking.bookingId,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    booking.bookingId,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
+                            const SizedBox(width: 10),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                               decoration: BoxDecoration(
@@ -317,13 +328,18 @@ class _PassDetailRow extends StatelessWidget {
           label,
           style: const TextStyle(color: Color(0xFF64748B), fontSize: 14),
         ),
-        const Spacer(),
-        Text(
-          value,
-          style: TextStyle(
-            color: valueColor ?? const Color(0xFF0F172A),
-            fontWeight: FontWeight.bold,
-            fontSize: 15,
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: valueColor ?? const Color(0xFF0F172A),
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
+            ),
           ),
         ),
       ],

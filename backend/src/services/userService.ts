@@ -39,8 +39,14 @@ export class UserService {
     });
 
     if (existingUser) {
-      // Firebase is the source of truth for email. Do not overwrite app profile fields on sign-in.
-      return prisma.user.update({ where: { firebaseUid: dto.firebaseUid }, data: { email: dto.email } });
+      // Firebase is the source of truth for email. Update role if explicitly supplied.
+      return prisma.user.update({
+        where: { firebaseUid: dto.firebaseUid },
+        data: {
+          email: dto.email,
+          ...(dto.role ? { role: dto.role } : {}),
+        },
+      });
     }
 
     return prisma.user.create({

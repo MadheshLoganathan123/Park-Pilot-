@@ -18,16 +18,25 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   bool _isLoading = false;
 
   void _handleCreateAccount() async {
-    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in all fields')),
+        const SnackBar(
+          content: Text('Please fill in all fields'),
+          backgroundColor: Colors.redAccent,
+        ),
       );
       return;
     }
 
-    if (_passwordController.text != _confirmPasswordController.text) {
+    if (password != _confirmPasswordController.text) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Passwords do not match')),
+        const SnackBar(
+          content: Text('Passwords do not match'),
+          backgroundColor: Colors.redAccent,
+        ),
       );
       return;
     }
@@ -35,7 +44,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     setState(() => _isLoading = true);
     try {
       final dataService = ParkingDataService();
-      await dataService.createAccount(_emailController.text, _passwordController.text, _selectedRole);
+      await dataService.createAccount(email, password, _selectedRole);
       if (mounted) {
         Navigator.pushAndRemoveUntil(
           context,
@@ -45,8 +54,15 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
       }
     } catch (e) {
       if (mounted) {
+        String errorMessage = e.toString();
+        if (errorMessage.contains(']')) {
+          errorMessage = errorMessage.split(']').last.trim();
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Registration failed: ${e.toString()}')),
+          SnackBar(
+            content: Text('Registration failed: $errorMessage'),
+            backgroundColor: Colors.redAccent,
+          ),
         );
       }
     } finally {
@@ -58,8 +74,8 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     setState(() => _isLoading = true);
     try {
       final dataService = ParkingDataService();
-      await dataService.signInWithGoogle(_selectedRole);
-      if (mounted) {
+      final success = await dataService.signInWithGoogle(_selectedRole);
+      if (mounted && success) {
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (context) => const AppShell()),
@@ -68,8 +84,15 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
       }
     } catch (e) {
       if (mounted) {
+        String errorMessage = e.toString();
+        if (errorMessage.contains(']')) {
+          errorMessage = errorMessage.split(']').last.trim();
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Google Sign-Up failed: ${e.toString()}')),
+          SnackBar(
+            content: Text('Google Sign-Up failed: $errorMessage'),
+            backgroundColor: Colors.redAccent,
+          ),
         );
       }
     } finally {

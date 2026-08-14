@@ -158,6 +158,54 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                       ),
                     ],
                   ),
+
+                  // Recent Search Chips
+                  if (_dataService.recentSearches.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        const Text(
+                          'Recent:',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF64748B)),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: _dataService.recentSearches.map((name) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 8.0),
+                                  child: InputChip(
+                                    label: Text(name, style: const TextStyle(fontSize: 12, color: Color(0xFF005DAC))),
+                                    backgroundColor: const Color(0xFFEFF6FF),
+                                    side: const BorderSide(color: Color(0xFFBFDBFE)),
+                                    onPressed: () {
+                                      final matched = lotsList.firstWhere(
+                                        (l) => l.name.toLowerCase() == name.toLowerCase(),
+                                        orElse: () => lotsList.isNotEmpty ? lotsList.first : _dataService.lots.first,
+                                      );
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => ParkingDetailsScreen(lot: matched),
+                                        ),
+                                      );
+                                    },
+                                    onDeleted: () {
+                                      _dataService.removeRecentSearch(name);
+                                    },
+                                    deleteIconColor: const Color(0xFF94A3B8),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+
                   const SizedBox(height: 20),
                   // Filter Tabs
                   SingleChildScrollView(
@@ -248,8 +296,31 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                       padding: EdgeInsets.symmetric(vertical: 40),
                       child: Center(child: CircularProgressIndicator()),
                     )
+                  else if (_dataService.errorMessage != null && lotsList.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 30),
+                      child: Center(
+                        child: Column(
+                          children: [
+                            const Icon(Icons.cloud_off_rounded, size: 48, color: Color(0xFF94A3B8)),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Unable to load parking lots',
+                              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey[700]),
+                            ),
+                            const SizedBox(height: 8),
+                            ElevatedButton.icon(
+                              onPressed: () => _dataService.loadLots(),
+                              icon: const Icon(Icons.refresh, size: 16),
+                              label: const Text('Retry'),
+                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF005DAC)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
                   else
-                    ...lotsList.take(3).map((lot) {
+                    ...lotsList.take(4).map((lot) {
                       final avail = lot.availableSlotsCount;
                       final borderColor = avail > 20
                           ? const Color(0xFF22C55E)
@@ -296,6 +367,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   Widget _buildParkingCard(BuildContext context, dynamic lot, {required Color borderColor, required String status, required Color statusColor}) {
     return GestureDetector(
       onTap: () {
+        _dataService.addRecentSearch(lot.name);
         Navigator.push(context, MaterialPageRoute(builder: (context) => ParkingDetailsScreen(lot: lot)));
       },
       child: Container(

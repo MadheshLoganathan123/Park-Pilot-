@@ -11,6 +11,9 @@ class ParkingSlot {
   SlotStatus status;
   bool isEv;
   bool isHandicapped;
+  String? vehiclePlate;
+  String? checkInTime;
+  String? customerName;
 
   ParkingSlot({
     required this.id,
@@ -18,6 +21,9 @@ class ParkingSlot {
     this.status = SlotStatus.available,
     this.isEv = false,
     this.isHandicapped = false,
+    this.vehiclePlate,
+    this.checkInTime,
+    this.customerName,
   });
 
   bool get isOccupied => status == SlotStatus.occupied;
@@ -38,6 +44,9 @@ class ParkingSlot {
       status: parseStatus(json['status']?.toString()),
       isEv: json['isEv'] == true,
       isHandicapped: json['isHandicapped'] == true,
+      vehiclePlate: json['vehiclePlate']?.toString(),
+      checkInTime: json['checkInTime']?.toString(),
+      customerName: json['customerName']?.toString(),
     );
   }
 
@@ -47,7 +56,70 @@ class ParkingSlot {
     'status': status.name.toUpperCase(),
     'isEv': isEv,
     'isHandicapped': isHandicapped,
+    'vehiclePlate': vehiclePlate,
+    'checkInTime': checkInTime,
+    'customerName': customerName,
   };
+}
+
+class WeeklyRevenueData {
+  final String day;
+  final String date;
+  final double revenue;
+
+  WeeklyRevenueData({
+    required this.day,
+    required this.date,
+    required this.revenue,
+  });
+
+  factory WeeklyRevenueData.fromJson(Map<String, dynamic> json) {
+    return WeeklyRevenueData(
+      day: json['day']?.toString() ?? 'Mon',
+      date: json['date']?.toString() ?? '',
+      revenue: (json['revenue'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+}
+
+class ProviderStats {
+  final double todayRevenue;
+  final double totalRevenue;
+  final int activeBookingsCount;
+  final int totalSlotsCount;
+  final int occupiedSlotsCount;
+  final int availableSlotsCount;
+  final double occupancyRate;
+  final List<WeeklyRevenueData> weeklyRevenue;
+
+  ProviderStats({
+    this.todayRevenue = 0.0,
+    this.totalRevenue = 0.0,
+    this.activeBookingsCount = 0,
+    this.totalSlotsCount = 0,
+    this.occupiedSlotsCount = 0,
+    this.availableSlotsCount = 0,
+    this.occupancyRate = 0.0,
+    this.weeklyRevenue = const [],
+  });
+
+  factory ProviderStats.fromJson(Map<String, dynamic> json) {
+    final weeklyList = (json['weeklyRevenue'] as List?)
+            ?.map((w) => WeeklyRevenueData.fromJson(w as Map<String, dynamic>))
+            .toList() ??
+        [];
+
+    return ProviderStats(
+      todayRevenue: (json['todayRevenue'] as num?)?.toDouble() ?? 0.0,
+      totalRevenue: (json['totalRevenue'] as num?)?.toDouble() ?? 0.0,
+      activeBookingsCount: (json['activeBookingsCount'] as num?)?.toInt() ?? 0,
+      totalSlotsCount: (json['totalSlotsCount'] as num?)?.toInt() ?? (json['totalSlotsCapacity'] as num?)?.toInt() ?? 0,
+      occupiedSlotsCount: (json['occupiedSlotsCount'] as num?)?.toInt() ?? (json['currentlyOccupiedSlots'] as num?)?.toInt() ?? 0,
+      availableSlotsCount: (json['availableSlotsCount'] as num?)?.toInt() ?? (json['currentlyAvailableSlots'] as num?)?.toInt() ?? 0,
+      occupancyRate: (json['occupancyRate'] as num?)?.toDouble() ?? (json['occupancyRatePercentage'] as num?)?.toDouble() ?? 0.0,
+      weeklyRevenue: weeklyList,
+    );
+  }
 }
 
 class ParkingLot {
@@ -95,16 +167,26 @@ class ParkingLot {
     if (json['slots'] is List && (json['slots'] as List).isNotEmpty) {
       parsedSlots = (json['slots'] as List).map((s) => ParkingSlot.fromJson(s as Map<String, dynamic>)).toList();
     } else {
+      final platePrefixes = ['TN 01', 'TN 02', 'TN 07', 'TN 09', 'TN 10', 'TN 14', 'TN 22'];
+      final customerNames = ['Rahul Sharma', 'Priya Mani', 'Arun Kumar', 'Deepa S', 'Karthik Raja', 'Ananya R'];
       parsedSlots = List.generate(totalSlots, (index) {
         final floorNum = (index ~/ 10) + 1;
         final slotLetter = String.fromCharCode(65 + (index ~/ 20));
         final slotNum = (index % 20) + 1;
-        final status = index < availableSlots ? SlotStatus.available : SlotStatus.occupied;
+        final isAvail = index < availableSlots;
+        final status = isAvail ? SlotStatus.available : SlotStatus.occupied;
+        final plate = isAvail ? null : '${platePrefixes[index % platePrefixes.length]} ${String.fromCharCode(65 + (index % 26))}${String.fromCharCode(65 + ((index * 3) % 26))} ${(1000 + (index * 137) % 8999)}';
+        final checkIn = isAvail ? null : '${(8 + (index % 5)).toString().padLeft(2, '0')}:${((index * 15) % 60).toString().padLeft(2, '0')} AM';
+        final cust = isAvail ? null : customerNames[index % customerNames.length];
+
         return ParkingSlot(
           id: '$slotLetter-${slotNum.toString().padLeft(2, '0')}',
           floor: 'Floor $floorNum',
           status: status,
           isEv: index % 5 == 0,
+          vehiclePlate: plate,
+          checkInTime: checkIn,
+          customerName: cust,
         );
       });
     }

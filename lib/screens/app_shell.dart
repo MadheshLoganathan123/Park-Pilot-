@@ -44,9 +44,54 @@ class _AppShellState extends State<AppShell> {
         ];
 
         return Scaffold(
-          body: IndexedStack(
-            index: isCustomer ? _customerTabIndex : _providerTabIndex,
-            children: isCustomer ? customerPages : providerPages,
+          body: SafeArea(
+            child: Column(
+              children: [
+                // Persistent Global Error Banner
+                ValueListenableBuilder<String?>(
+                  valueListenable: dataService.globalErrorNotifier,
+                  builder: (context, error, _) {
+                    if (error == null || error.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    return MaterialBanner(
+                      backgroundColor: const Color(0xFFFEF2F2),
+                      elevation: 2,
+                      leading: const Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626)),
+                      content: Text(
+                        error,
+                        style: const TextStyle(
+                          color: Color(0xFFDC2626),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => dataService.clearGlobalError(),
+                          child: const Text(
+                            'DISMISS',
+                            style: TextStyle(
+                              color: Color(0xFFDC2626),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+
+                // Main Page Content
+                Expanded(
+                  child: IndexedStack(
+                    index: isCustomer ? _customerTabIndex : _providerTabIndex,
+                    children: isCustomer ? customerPages : providerPages,
+                  ),
+                ),
+              ],
+            ),
           ),
           bottomNavigationBar: Container(
             decoration: BoxDecoration(
