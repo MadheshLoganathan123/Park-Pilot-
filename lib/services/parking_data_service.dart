@@ -153,9 +153,17 @@ class ParkingDataService extends ChangeNotifier {
         email: cleanEmail,
         password: password,
       );
-      await _syncAndSaveSession(credential.user!, role);
-      loadLots();
-      loadBookings();
+      try {
+        await _syncAndSaveSession(credential.user!, role);
+        loadLots();
+        loadBookings();
+      } on ApiException catch (e) {
+        try {
+          await FirebaseAuth.instance.signOut();
+        } catch (_) {}
+        debugPrint('Profile sync failed after Firebase login: ${e.message}');
+        rethrow;
+      }
     } on FirebaseAuthException catch (e) {
       debugPrint('Login attempt failed: ${e.code} - ${e.message}');
 

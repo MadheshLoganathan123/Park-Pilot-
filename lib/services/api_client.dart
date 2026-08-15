@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
@@ -136,6 +137,27 @@ class ApiClient {
 
   Exception _handleError(dynamic error) {
     if (error is ApiException) return error;
-    return ApiException('Network connection error: ${error.toString()}');
+
+    final message = error.toString().toLowerCase();
+    if (message.contains('connection refused') ||
+        message.contains('failed host lookup') ||
+        message.contains('failed to fetch') ||
+        message.contains('network is unreachable') ||
+        message.contains('connection reset') ||
+        message.contains('socketexception') ||
+        message.contains('clientexception')) {
+      return ApiException(
+        'Cannot reach the ParkPilot server at ${ApiConfig.baseUrl}. '
+        'Start the backend with "npm run dev" in the backend folder.',
+      );
+    }
+    if (error is TimeoutException || message.contains('timeout')) {
+      return ApiException('The server took too long to respond. Check your connection and try again.');
+    }
+    if (message.contains('certificate') || message.contains('handshake')) {
+      return ApiException('Secure connection to the server failed. Check backend URL and HTTPS settings.');
+    }
+
+    return ApiException('Request failed: ${error.runtimeType}');
   }
 }

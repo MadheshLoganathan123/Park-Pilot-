@@ -9,7 +9,6 @@ import '../../theme/logo_data.dart';
 import 'parking_details_screen.dart';
 import 'live_parking_map_screen.dart';
 import 'slot_selection_screen.dart';
-import 'find_parking_screen.dart';
 
 class CustomerHomeScreen extends StatefulWidget {
   const CustomerHomeScreen({super.key});
@@ -20,7 +19,10 @@ class CustomerHomeScreen extends StatefulWidget {
 
 class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   final ParkingDataService _dataService = ParkingDataService();
+  final TextEditingController _searchController = TextEditingController();
   String _selectedCategory = 'All';
+  String _searchQuery = '';
+  String _sortFilter = 'Nearest';
 
   @override
   void initState() {
@@ -30,17 +32,128 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     });
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   List<ParkingLot> _getFilteredLots(List<ParkingLot> lots) {
-    if (_selectedCategory == 'Available') {
-      return lots.where((l) => l.availableSlotsCount > 0).toList();
-    } else if (_selectedCategory == 'EV Fast') {
-      return lots.where((l) => l.availableEvSlotsCount > 0).toList();
-    } else if (_selectedCategory == 'Top Rated') {
-      final sorted = List<ParkingLot>.from(lots);
-      sorted.sort((a, b) => b.rating.compareTo(a.rating));
-      return sorted;
+    var list = List<ParkingLot>.from(lots);
+
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      list = list
+          .where((lot) =>
+              lot.name.toLowerCase().contains(q) || lot.address.toLowerCase().contains(q))
+          .toList();
     }
-    return lots;
+
+    if (_selectedCategory == 'Available') {
+      list = list.where((l) => l.availableSlotsCount > 0).toList();
+    } else if (_selectedCategory == 'EV Fast') {
+      list = list.where((l) => l.availableEvSlotsCount > 0).toList();
+    }
+
+    final sortBy = _selectedCategory == 'Top Rated' ? 'Rating' : _sortFilter;
+    switch (sortBy) {
+      case 'Price':
+        list.sort((a, b) => a.hourlyRate.compareTo(b.hourlyRate));
+        break;
+      case 'Availability':
+        list.sort((a, b) => b.availableSlotsCount.compareTo(a.availableSlotsCount));
+        break;
+      case 'Rating':
+        list.sort((a, b) => b.rating.compareTo(a.rating));
+        break;
+      case 'Nearest':
+      default:
+        break;
+    }
+
+    return list;
+  }
+
+  void _showSortFilterSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppTheme.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Sort Results',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppTheme.textPrimary),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Choose how nearby parking spaces are ordered',
+                style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+              ),
+              const SizedBox(height: 16),
+              _buildSortOption('Nearest', Icons.near_me_outlined),
+              _buildSortOption('Price', Icons.payments_outlined),
+              _buildSortOption('Availability', Icons.local_parking_outlined),
+              _buildSortOption('Rating', Icons.star_outline_rounded),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () {
+                    setState(() {
+                      _sortFilter = 'Nearest';
+                      _selectedCategory = 'All';
+                      _searchQuery = '';
+                      _searchController.clear();
+                    });
+                    Navigator.pop(sheetContext);
+                  },
+                  child: const Text('Reset All Filters'),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSortOption(String label, IconData icon) {
+    final isSelected = _sortFilter == label;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon, color: isSelected ? AppTheme.primary : AppTheme.textSecondary),
+      title: Text(
+        label,
+        style: TextStyle(
+          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+          color: isSelected ? AppTheme.primary : AppTheme.textPrimary,
+        ),
+      ),
+      trailing: isSelected ? const Icon(Icons.check_circle_rounded, color: AppTheme.primary) : null,
+      onTap: () {
+        setState(() => _sortFilter = label);
+        Navigator.pop(context);
+      },
+    );
   }
 
   @override
@@ -178,35 +291,54 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                   ),
                   const SizedBox(height: 18),
 
-                  // Modern Search Pill Bar
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const FindParkingScreen()),
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppTheme.border),
-                        boxShadow: AppTheme.cardShadow,
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.search_rounded, color: AppTheme.primary, size: 22),
-                          SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              'Search destination, mall, or street...',
-                              style: TextStyle(color: AppTheme.textMuted, fontSize: 14, fontWeight: FontWeight.w500),
+                  // Search bar — filters list in place
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppTheme.border),
+                      boxShadow: AppTheme.cardShadow,
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.search_rounded, color: AppTheme.primary, size: 22),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: _searchController,
+                            onChanged: (value) => setState(() => _searchQuery = value.trim()),
+                            textInputAction: TextInputAction.search,
+                            decoration: const InputDecoration(
+                              hintText: 'Search destination, mall, or street...',
+                              hintStyle: TextStyle(color: AppTheme.textMuted, fontSize: 14, fontWeight: FontWeight.w500),
+                              border: InputBorder.none,
+                              isDense: true,
                             ),
                           ),
-                          Icon(Icons.tune_rounded, color: AppTheme.textSecondary, size: 20),
-                        ],
-                      ),
+                        ),
+                        if (_searchQuery.isNotEmpty)
+                          IconButton(
+                            icon: const Icon(Icons.close_rounded, size: 18, color: AppTheme.textMuted),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() => _searchQuery = '');
+                            },
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                          ),
+                        IconButton(
+                          icon: Icon(
+                            Icons.tune_rounded,
+                            size: 20,
+                            color: _sortFilter != 'Nearest' ? AppTheme.primary : AppTheme.textSecondary,
+                          ),
+                          tooltip: 'Sort & filter',
+                          onPressed: _showSortFilterSheet,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -281,7 +413,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                       ),
                                     ),
                                     // Real lot pins
-                                    ...lotsList.take(4).map((lot) {
+                                    ...filteredLots.take(4).map((lot) {
                                       final isFull = lot.availableSlotsCount == 0;
                                       final color = isFull ? AppTheme.error : AppTheme.success;
                                       return Marker(
@@ -378,7 +510,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                         style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
                                       ),
                                       Text(
-                                        '${lotsList.length} parking spaces nearby',
+                                        '${filteredLots.length} parking spaces nearby',
                                         style: const TextStyle(fontSize: 11, color: Color(0xFFE2E8F0)),
                                       ),
                                     ],
@@ -451,6 +583,39 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                               onPressed: () => _dataService.loadLots(),
                               icon: const Icon(Icons.refresh, size: 16),
                               label: const Text('Retry'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else if (filteredLots.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 30),
+                      child: Center(
+                        child: Column(
+                          children: [
+                            const Icon(Icons.search_off_rounded, size: 48, color: AppTheme.textMuted),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'No parking spaces match your search',
+                              style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Try a different keyword or reset filters',
+                              style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+                            ),
+                            const SizedBox(height: 12),
+                            OutlinedButton(
+                              onPressed: () {
+                                setState(() {
+                                  _searchQuery = '';
+                                  _searchController.clear();
+                                  _selectedCategory = 'All';
+                                  _sortFilter = 'Nearest';
+                                });
+                              },
+                              child: const Text('Reset Filters'),
                             ),
                           ],
                         ),

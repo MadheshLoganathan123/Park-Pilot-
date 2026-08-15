@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../services/api_client.dart';
 import '../services/parking_data_service.dart';
 import 'app_shell.dart';
 import 'customer/create_account_screen.dart';
@@ -31,6 +32,11 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   String _friendlyError(Object e) {
+    if (e is ApiException) {
+      if (e.statusCode == 401) return 'Session expired or invalid. Please sign in again.';
+      if (e.statusCode == 503) return 'Server is temporarily unavailable. Try again shortly.';
+      return e.message;
+    }
     if (e is FirebaseAuthException) {
       switch (e.code) {
         case 'user-not-found':
