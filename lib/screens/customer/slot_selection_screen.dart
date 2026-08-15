@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/parking_lot.dart';
@@ -25,6 +26,7 @@ class _SlotSelectionScreenState extends State<SlotSelectionScreen> with SingleTi
   late Animation<double> _pulseAnimation;
   String _selectedTimeSlot = '10:00 AM';
   String _defaultVehicle = 'TN09AB1234';
+  Timer? _pollingTimer;
 
   final List<String> _timeSlots = [
     '08:00 AM', '08:30 AM', '09:00 AM', '09:30 AM',
@@ -47,6 +49,13 @@ class _SlotSelectionScreenState extends State<SlotSelectionScreen> with SingleTi
     _pulseAnimation = Tween<double>(begin: 2.0, end: 4.5).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+
+    // Silent background polling for real-time concurrency
+    _pollingTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted) {
+        ParkingDataService().fetchLotDetails(widget.lot.id);
+      }
+    });
   }
 
   Future<void> _loadDefaultVehicle() async {
@@ -137,6 +146,7 @@ class _SlotSelectionScreenState extends State<SlotSelectionScreen> with SingleTi
 
   @override
   void dispose() {
+    _pollingTimer?.cancel();
     _pulseController.dispose();
     super.dispose();
   }

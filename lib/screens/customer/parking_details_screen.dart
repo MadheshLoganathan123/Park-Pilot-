@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import '../../models/parking_lot.dart';
 import '../../services/osm_map_service.dart';
 import '../../services/parking_data_service.dart';
+import '../../theme/app_theme.dart';
 import 'slot_selection_screen.dart';
 import 'live_parking_map_screen.dart';
 
@@ -43,24 +44,25 @@ class _ParkingDetailsScreenState extends State<ParkingDetailsScreen> {
     final effectiveRate = _dataService.calculateEffectiveRate(_currentLot.hourlyRate);
     final available = _currentLot.availableSlotsCount;
     final total = _currentLot.totalSlotsCount > 0 ? _currentLot.totalSlotsCount : 10;
-    final occupancy = (total - available) / total;
+    final occupancy = ((total - available) / total).clamp(0.0, 1.0);
 
     return Scaffold(
+      backgroundColor: AppTheme.background,
       body: Stack(
         children: [
           SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header Image / Gradient Banner
+                // Top Hero Header with Gradient & Floating Actions
                 Stack(
                   children: [
                     Container(
-                      height: 250,
+                      height: 240,
                       width: double.infinity,
                       decoration: const BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [Color(0xFF005DAC), Color(0xFF0284C7)],
+                          colors: [AppTheme.primary, Color(0xFF3B82F6)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
@@ -68,8 +70,8 @@ class _ParkingDetailsScreenState extends State<ParkingDetailsScreen> {
                       child: Center(
                         child: Icon(
                           _currentLot.type.contains('Multi') ? Icons.apartment_rounded : Icons.local_parking_rounded,
-                          size: 90,
-                          color: Colors.white.withValues(alpha: 0.8),
+                          size: 84,
+                          color: Colors.white.withValues(alpha: 0.85),
                         ),
                       ),
                     ),
@@ -79,12 +81,12 @@ class _ParkingDetailsScreenState extends State<ParkingDetailsScreen> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            _buildCircleIconButton(Icons.arrow_back, onTap: () => Navigator.pop(context)),
+                            _buildHeaderIconButton(Icons.arrow_back_rounded, onTap: () => Navigator.pop(context)),
                             Row(
                               children: [
-                                _buildCircleIconButton(Icons.refresh_rounded, onTap: _refreshLotData),
-                                const SizedBox(width: 12),
-                                _buildCircleIconButton(Icons.favorite_border),
+                                _buildHeaderIconButton(Icons.refresh_rounded, onTap: _refreshLotData),
+                                const SizedBox(width: 10),
+                                _buildHeaderIconButton(Icons.bookmark_border_rounded),
                               ],
                             ),
                           ],
@@ -93,15 +95,16 @@ class _ParkingDetailsScreenState extends State<ParkingDetailsScreen> {
                     ),
                   ],
                 ),
-                // Details Card
+
+                // Main Details Card Container
                 Transform.translate(
-                  offset: const Offset(0, -30),
+                  offset: const Offset(0, -28),
                   child: Container(
                     decoration: const BoxDecoration(
-                      color: Color(0xFFF8FAFC),
+                      color: AppTheme.background,
                       borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(30),
-                        topRight: Radius.circular(30),
+                        topLeft: Radius.circular(28),
+                        topRight: Radius.circular(28),
                       ),
                     ),
                     child: Padding(
@@ -109,47 +112,51 @@ class _ParkingDetailsScreenState extends State<ParkingDetailsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // Facility Title & Star Rating
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Expanded(
                                 child: Text(
                                   _currentLot.name,
                                   style: const TextStyle(
                                     fontSize: 22,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF1E293B),
+                                    fontWeight: FontWeight.w800,
+                                    color: AppTheme.textPrimary,
+                                    letterSpacing: -0.3,
                                   ),
                                 ),
                               ),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFDBEAFE),
-                                  borderRadius: BorderRadius.circular(6),
+                                  color: AppTheme.warningLight,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: const Color(0xFFFDE68A)),
                                 ),
                                 child: Row(
                                   children: [
-                                    const Icon(Icons.star, color: Color(0xFF005DAC), size: 14),
+                                    const Icon(Icons.star_rounded, color: AppTheme.warning, size: 16),
                                     const SizedBox(width: 4),
                                     Text(
                                       '${_currentLot.rating}',
-                                      style: const TextStyle(color: Color(0xFF005DAC), fontWeight: FontWeight.bold, fontSize: 12),
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPrimary),
                                     ),
                                   ],
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 6),
                           Row(
                             children: [
-                              const Icon(Icons.location_on_outlined, size: 16, color: Color(0xFF64748B)),
+                              const Icon(Icons.location_on_outlined, size: 16, color: AppTheme.textMuted),
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
                                   '${_currentLot.address} • ${_currentLot.distance} away',
-                                  style: const TextStyle(color: Color(0xFF64748B)),
+                                  style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -158,243 +165,165 @@ class _ParkingDetailsScreenState extends State<ParkingDetailsScreen> {
                           ),
                           const SizedBox(height: 24),
 
-                          // Animated Capacity Status & Occupancy Ring
+                          // Live Occupancy Card (Elevated White Surface)
+                          Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: AppTheme.border),
+                              boxShadow: AppTheme.cardShadow,
+                            ),
+                            child: Row(
+                              children: [
+                                SizedBox(
+                                  width: 64,
+                                  height: 64,
+                                  child: Stack(
+                                    children: [
+                                      CircularProgressIndicator(
+                                        value: occupancy,
+                                        backgroundColor: AppTheme.surfaceMuted,
+                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                          available > 10 ? AppTheme.success : AppTheme.warning,
+                                        ),
+                                        strokeWidth: 7,
+                                        strokeCap: StrokeCap.round,
+                                      ),
+                                      Center(
+                                        child: Text(
+                                          '${(occupancy * 100).toInt()}%',
+                                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppTheme.textPrimary),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 18),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '$available Spots Free',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w800,
+                                          color: available > 0 ? AppTheme.success : AppTheme.error,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Out of $total standard & EV slots',
+                                        style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Amenities Section
+                          const Text('Facility Amenities', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppTheme.textPrimary)),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              _buildAmenityPill(Icons.videocam_outlined, '24/7 CCTV'),
+                              _buildAmenityPill(Icons.shield_outlined, 'Security Guard'),
+                              _buildAmenityPill(Icons.roofing_rounded, 'Covered Roof'),
+                              _buildAmenityPill(Icons.bolt_rounded, 'EV Fast Charging'),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Duration Selector Card
+                          const Text('Reservation Time & Duration', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppTheme.textPrimary)),
+                          const SizedBox(height: 12),
                           Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
                               color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border(
-                                left: BorderSide(
-                                  color: available > 10
-                                      ? const Color(0xFF22C55E)
-                                      : (available > 0 ? const Color(0xFFF59E0B) : const Color(0xFFEF4444)),
-                                  width: 4,
-                                ),
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.03),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: AppTheme.border),
+                              boxShadow: AppTheme.cardShadow,
                             ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            child: Column(
                               children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    TweenAnimationBuilder<int>(
-                                      tween: IntTween(begin: 0, end: available),
-                                      duration: const Duration(milliseconds: 1000),
-                                      builder: (context, val, _) {
-                                        return Text(
-                                          '$val / $total Slots Available',
-                                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
-                                        );
-                                      },
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'Live occupancy: ${(occupancy * 100).toInt()}% full',
-                                      style: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
-                                    ),
-                                  ],
-                                ),
-                                SizedBox(
-                                  width: 48,
-                                  height: 48,
-                                  child: Stack(
+                                GestureDetector(
+                                  onTap: () async {
+                                    final picked = await showDatePicker(
+                                      context: context,
+                                      initialDate: _selectedDate,
+                                      firstDate: DateTime.now(),
+                                      lastDate: DateTime.now().add(const Duration(days: 14)),
+                                    );
+                                    if (picked != null) {
+                                      setState(() => _selectedDate = picked);
+                                    }
+                                  },
+                                  child: Row(
                                     children: [
-                                      CircularProgressIndicator(
-                                        value: (total - available) / total,
-                                        backgroundColor: const Color(0xFFE2E8F0),
-                                        valueColor: AlwaysStoppedAnimation<Color>(
-                                          available > 10
-                                              ? const Color(0xFF22C55E)
-                                              : (available > 0 ? const Color(0xFFF59E0B) : const Color(0xFFEF4444)),
-                                        ),
-                                        strokeWidth: 5,
-                                      ),
-                                      Center(
-                                        child: Text(
-                                          '$available',
-                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E293B)),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-
-                          // Info Boxes
-                          Row(
-                            children: [
-                              _buildInfoBox(Icons.payments_outlined, 'Price', '₹${effectiveRate.toInt()}/hr'),
-                              const SizedBox(width: 12),
-                              _buildInfoBox(Icons.access_time, 'Hours', '24/7'),
-                              const SizedBox(width: 12),
-                              _buildInfoBox(Icons.verified_user_outlined, 'Security', 'Guarded'),
-                            ],
-                          ),
-                          const SizedBox(height: 28),
-
-                          const Text(
-                            'Amenities',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 12),
-                          Wrap(
-                            spacing: 10,
-                            runSpacing: 10,
-                            children: [
-                              _buildAmenityChip(Icons.videocam_outlined, 'CCTV Surveillance'),
-                              _buildAmenityChip(Icons.shield_outlined, 'Security Guards'),
-                              _buildAmenityChip(Icons.home_outlined, 'Covered Parking'),
-                              _buildAmenityChip(Icons.bolt, 'EV Fast Charging'),
-                            ],
-                          ),
-                          const SizedBox(height: 28),
-
-                          const Text(
-                            'Booking Details',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 14),
-
-                          // Date Picker Button
-                          GestureDetector(
-                            onTap: () async {
-                              final picked = await showDatePicker(
-                                context: context,
-                                initialDate: _selectedDate,
-                                firstDate: DateTime.now(),
-                                lastDate: DateTime.now().add(const Duration(days: 14)),
-                              );
-                              if (picked != null) {
-                                setState(() => _selectedDate = picked);
-                              }
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: const Color(0xFFE2E8F0)),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.calendar_today_outlined, color: Color(0xFF005DAC), size: 20),
+                                      const Icon(Icons.calendar_today_rounded, color: AppTheme.primary, size: 20),
                                       const SizedBox(width: 12),
-                                      Text(
-                                        '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year} (Today)',
-                                        style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
+                                      Expanded(
+                                        child: Text(
+                                          '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year} (Today)',
+                                          style: const TextStyle(fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
+                                        ),
                                       ),
+                                      const Icon(Icons.edit_calendar_rounded, color: AppTheme.textMuted, size: 18),
                                     ],
                                   ),
-                                  const Icon(Icons.edit_calendar_rounded, color: Color(0xFF64748B), size: 18),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-
-                          // Duration Selector
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFFE2E8F0)),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Row(
-                                  children: [
-                                    Icon(Icons.timer_outlined, color: Color(0xFF005DAC), size: 20),
-                                    SizedBox(width: 12),
-                                    Text('Duration', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1E293B))),
-                                  ],
                                 ),
+                                const Divider(color: AppTheme.borderLight, height: 24),
                                 Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    IconButton(
-                                      onPressed: _durationHours > 1 ? () => setState(() => _durationHours--) : null,
-                                      icon: const Icon(Icons.remove_circle_outline, color: Color(0xFF005DAC)),
+                                    const Row(
+                                      children: [
+                                        Icon(Icons.timer_outlined, color: AppTheme.primary, size: 20),
+                                        SizedBox(width: 12),
+                                        Text('Duration', style: TextStyle(fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+                                      ],
                                     ),
-                                    Text(
-                                      '$_durationHours hr${_durationHours > 1 ? 's' : ''}',
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF005DAC)),
-                                    ),
-                                    IconButton(
-                                      onPressed: _durationHours < 12 ? () => setState(() => _durationHours++) : null,
-                                      icon: const Icon(Icons.add_circle_outline, color: Color(0xFF005DAC)),
+                                    Row(
+                                      children: [
+                                        IconButton(
+                                          onPressed: _durationHours > 1 ? () => setState(() => _durationHours--) : null,
+                                          icon: const Icon(Icons.remove_circle_outline, color: AppTheme.primary),
+                                        ),
+                                        Text(
+                                          '$_durationHours hr${_durationHours > 1 ? 's' : ''}',
+                                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: AppTheme.primary),
+                                        ),
+                                        IconButton(
+                                          onPressed: _durationHours < 12 ? () => setState(() => _durationHours++) : null,
+                                          icon: const Icon(Icons.add_circle_outline, color: AppTheme.primary),
+                                        ),
+                                      ],
                                     ),
                                   ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-
-                          // Total Price Summary Card
-                          Container(
-                            padding: const EdgeInsets.all(18),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('Estimated Cost ($_durationHours hrs)', style: const TextStyle(color: Color(0xFF64748B), fontSize: 13)),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '₹${(effectiveRate * _durationHours).toInt()}',
-                                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
-                                    ),
-                                  ],
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFDBEAFE),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    '₹${effectiveRate.toInt()}/hr',
-                                    style: const TextStyle(color: Color(0xFF005DAC), fontWeight: FontWeight.bold, fontSize: 13),
-                                  ),
                                 ),
                               ],
                             ),
                           ),
                           const SizedBox(height: 24),
-                          const Text(
-                            'Location & Navigation',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                          ),
+
+                          // Location & OSM Preview
+                          const Text('Location & Live Navigation', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppTheme.textPrimary)),
                           const SizedBox(height: 12),
                           ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(18),
                             child: Container(
                               height: 160,
                               width: double.infinity,
                               decoration: BoxDecoration(
-                                border: Border.all(color: const Color(0xFFE2E8F0)),
-                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: AppTheme.border),
+                                borderRadius: BorderRadius.circular(18),
                               ),
                               child: Stack(
                                 children: [
@@ -415,7 +344,7 @@ class _ParkingDetailsScreenState extends State<ParkingDetailsScreen> {
                                             point: LatLng(_currentLot.latitude, _currentLot.longitude),
                                             width: 40,
                                             height: 40,
-                                            child: const Icon(Icons.location_on, color: Color(0xFF005DAC), size: 36),
+                                            child: const Icon(Icons.location_on_rounded, color: AppTheme.primary, size: 36),
                                           ),
                                         ],
                                       ),
@@ -433,10 +362,10 @@ class _ParkingDetailsScreenState extends State<ParkingDetailsScreen> {
                                           ),
                                         );
                                       },
-                                      icon: const Icon(Icons.navigation_rounded, size: 16, color: Colors.white),
+                                      icon: const Icon(Icons.navigation_rounded, size: 14, color: Colors.white),
                                       label: const Text('Open in Live Map', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFF005DAC),
+                                        backgroundColor: AppTheme.primary,
                                         foregroundColor: Colors.white,
                                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -447,7 +376,7 @@ class _ParkingDetailsScreenState extends State<ParkingDetailsScreen> {
                               ),
                             ),
                           ),
-                          const SizedBox(height: 100),
+                          const SizedBox(height: 110),
                         ],
                       ),
                     ),
@@ -456,40 +385,48 @@ class _ParkingDetailsScreenState extends State<ParkingDetailsScreen> {
               ],
             ),
           ),
-          // Bottom Reserve Button
+
+          // Bottom Reserve Floating Checkout Bar
           Align(
             alignment: Alignment.bottomCenter,
             child: Container(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.white.withValues(alpha: 0), Colors.white],
-                ),
+                color: Colors.white,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                boxShadow: AppTheme.floatingShadow,
               ),
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => SlotSelectionScreen(lot: _currentLot),
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF005DAC),
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 56),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  elevation: 0,
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+              child: SafeArea(
+                top: false,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Select Parking Slot', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                    SizedBox(width: 8),
-                    Icon(Icons.arrow_forward, size: 20),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Total ($_durationHours hrs)', style: const TextStyle(fontSize: 12, color: AppTheme.textMuted, fontWeight: FontWeight.w600)),
+                        Text(
+                          '₹${(effectiveRate * _durationHours).toInt()}',
+                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppTheme.textPrimary),
+                        ),
+                      ],
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: available > 0
+                          ? () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => SlotSelectionScreen(lot: _currentLot)),
+                              );
+                            }
+                          : null,
+                      icon: const Icon(Icons.grid_view_rounded, size: 18),
+                      label: const Text('Select Slot & Reserve'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -500,56 +437,37 @@ class _ParkingDetailsScreenState extends State<ParkingDetailsScreen> {
     );
   }
 
-  Widget _buildCircleIconButton(IconData icon, {VoidCallback? onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: const Color(0xFF1E293B), size: 20),
-      ),
-    );
-  }
-
-  Widget _buildInfoBox(IconData icon, String title, String value) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: const Color(0xFF005DAC), size: 24),
-            const SizedBox(height: 8),
-            Text(title, style: const TextStyle(color: Color(0xFF64748B), fontSize: 12)),
-            const SizedBox(height: 4),
-            Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E293B))),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAmenityChip(IconData icon, String label) {
+  Widget _buildHeaderIconButton(IconData icon, {VoidCallback? onTap}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.9),
+        shape: BoxShape.circle,
+        boxShadow: AppTheme.cardShadow,
+      ),
+      child: IconButton(
+        icon: Icon(icon, color: AppTheme.textPrimary, size: 18),
+        onPressed: onTap,
+        padding: EdgeInsets.zero,
+      ),
+    );
+  }
+
+  Widget _buildAmenityPill(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: AppTheme.border),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: const Color(0xFF005DAC)),
+          Icon(icon, size: 16, color: AppTheme.primary),
           const SizedBox(width: 6),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13, color: Color(0xFF1E293B))),
+          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
         ],
       ),
     );

@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
+import 'package:geolocator/geolocator.dart';
+
 class RoutingResult {
   final List<LatLng> polylinePoints;
   final double distanceKm;
@@ -24,6 +26,39 @@ class OsmMapService {
 
   /// Default user location (e.g. Chennai Central / T. Nagar)
   static const LatLng defaultUserLocation = LatLng(13.0827, 80.2707);
+
+  /// Determine user's real GPS position or gracefully fallback to default
+  Future<LatLng> determineCurrentLocation() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        return defaultUserLocation;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          return defaultUserLocation;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        return defaultUserLocation;
+      }
+
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 5),
+        ),
+      );
+      return LatLng(pos.latitude, pos.longitude);
+    } catch (e) {
+      debugPrint('Geolocator location retrieval fallback: $e');
+      return defaultUserLocation;
+    }
+  }
 
   /// OpenStreetMap standard tile URL template
   static const String tileUrlTemplate = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../../models/parking_lot.dart';
+import '../../services/osm_map_service.dart';
 import '../../services/parking_data_service.dart';
 
 class ManageParkingSpaceScreen extends StatefulWidget {
@@ -43,8 +46,8 @@ class _ManageParkingSpaceScreenState extends State<ManageParkingSpaceScreen> {
     _priceController = TextEditingController(text: lot != null ? '${lot.hourlyRate.toInt()}' : '50');
     _hoursController = TextEditingController(text: '24/7');
     _descController = TextEditingController(text: '');
-    _latController = TextEditingController(text: '13.0827');
-    _lngController = TextEditingController(text: '80.2707');
+    _latController = TextEditingController(text: lot != null ? '${lot.latitude}' : '13.0827');
+    _lngController = TextEditingController(text: lot != null ? '${lot.longitude}' : '80.2707');
 
     if (lot != null) {
       final typeUpper = lot.type.toUpperCase().replaceAll('-', '_').replaceAll(' ', '_');
@@ -384,8 +387,66 @@ class _ManageParkingSpaceScreenState extends State<ManageParkingSpaceScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Geolocation Coordinates
-              _buildSectionTitle('GPS Map Coordinates'),
+              // Geolocation Coordinates & Interactive Map Pin Picker
+              _buildSectionTitle('GPS Map Coordinates & Pin Location'),
+              const SizedBox(height: 8),
+              const Text(
+                'Tap anywhere on the live map below or drag coordinates to set your facility entry point.',
+                style: TextStyle(color: Color(0xFF64748B), fontSize: 12),
+              ),
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  height: 180,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: StatefulBuilder(
+                    builder: (context, setMapState) {
+                      final currentLat = double.tryParse(_latController.text) ?? 13.0827;
+                      final currentLng = double.tryParse(_lngController.text) ?? 80.2707;
+                      final pinLocation = LatLng(currentLat, currentLng);
+
+                      return FlutterMap(
+                        options: MapOptions(
+                          initialCenter: pinLocation,
+                          initialZoom: 14.0,
+                          onTap: (_, tappedPoint) {
+                            setState(() {
+                              _latController.text = tappedPoint.latitude.toStringAsFixed(6);
+                              _lngController.text = tappedPoint.longitude.toStringAsFixed(6);
+                            });
+                            setMapState(() {});
+                          },
+                        ),
+                        children: [
+                          TileLayer(
+                            urlTemplate: OsmMapService.tileUrlTemplate,
+                            userAgentPackageName: 'com.parkpilot.app',
+                          ),
+                          MarkerLayer(
+                            markers: [
+                              Marker(
+                                point: pinLocation,
+                                width: 44,
+                                height: 44,
+                                child: const Icon(
+                                  Icons.location_on_rounded,
+                                  color: Color(0xFFEF4444),
+                                  size: 40,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ),
               const SizedBox(height: 12),
               Row(
                 children: [

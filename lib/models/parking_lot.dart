@@ -158,6 +158,7 @@ class ParkingLot {
   });
 
   int get availableSlotsCount => slots.where((s) => s.status == SlotStatus.available).length;
+  int get availableEvSlotsCount => slots.where((s) => s.status == SlotStatus.available && s.isEv).length;
   int get totalSlotsCount => slots.length;
   double get occupancyPercentage => totalSlotsCount > 0 
       ? ((totalSlotsCount - availableSlotsCount) / totalSlotsCount) * 100 
