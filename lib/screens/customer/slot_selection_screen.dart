@@ -57,6 +57,84 @@ class _SlotSelectionScreenState extends State<SlotSelectionScreen> with SingleTi
     }
   }
 
+  Future<void> _handleBookingSubmit(ParkingLot lot, double effectiveRate, ParkingDataService dataService) async {
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    final now = DateTime.now();
+    int startHour = 10;
+    int startMinute = 0;
+    final parts = _selectedTimeSlot.split(' ');
+    if (parts.length == 2) {
+      final timeParts = parts[0].split(':');
+      if (timeParts.length == 2) {
+        startHour = int.tryParse(timeParts[0]) ?? 10;
+        startMinute = int.tryParse(timeParts[1]) ?? 0;
+        if (parts[1] == 'PM' && startHour < 12) startHour += 12;
+        if (parts[1] == 'AM' && startHour == 12) startHour = 0;
+      }
+    }
+
+    final startTime = DateTime(now.year, now.month, now.day, startHour, startMinute);
+    final endTime = startTime.add(Duration(hours: _durationHours));
+
+    try {
+      final createdBooking = await dataService.createBooking(
+        parkingSpaceId: lot.id,
+        bookingDate: now.toIso8601String(),
+        startTime: startTime.toIso8601String(),
+        endTime: endTime.toIso8601String(),
+        paymentMethod: 'CARD',
+      );
+
+      if (!mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ConfirmationScreen(booking: createdBooking),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      final errStr = e.toString().toLowerCase();
+      String userMsg = 'Unable to complete reservation. Please try again.';
+      if (errStr.contains('409') || errStr.contains('reserved') || errStr.contains('taken')) {
+        userMsg = 'Someone just grabbed this spot — please pick another slot.';
+      } else if (errStr.contains('network') || errStr.contains('socket')) {
+        userMsg = 'Network issue detected. Check your connection and retry.';
+      }
+
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.error_outline_rounded, color: Colors.redAccent),
+              SizedBox(width: 8),
+              Text('Reservation Failed'),
+            ],
+          ),
+          content: Text(userMsg),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
+  }
+
   @override
   void dispose() {
     _pulseController.dispose();
@@ -69,7 +147,7 @@ class _SlotSelectionScreenState extends State<SlotSelectionScreen> with SingleTi
 
     return AnimatedBuilder(
       animation: dataService,
-      builder: (context, _) {
+      builder: (builderCtx, _) {
         final lot = widget.lot;
         final effectiveRate = dataService.calculateEffectiveRate(lot.hourlyRate);
 
@@ -458,7 +536,7 @@ class _SlotSelectionScreenState extends State<SlotSelectionScreen> with SingleTi
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text('Rate (${_durationHours} hrs)', style: const TextStyle(color: Color(0xFF94A3B8))),
+                                  Text('Rate ($_durationHours hrs)', style: const TextStyle(color: Color(0xFF94A3B8))),
                                   Text('₹${(effectiveRate * _durationHours).toStringAsFixed(0)}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                                 ],
                               ),
@@ -512,84 +590,7 @@ class _SlotSelectionScreenState extends State<SlotSelectionScreen> with SingleTi
                     ),
                     onPressed: (_selectedSlotId == null || _isSubmitting)
                         ? null
-                        : () async {
-                            setState(() {
-                              _isSubmitting = true;
-                            });
-
-                            // Parse time slot selected
-                            final now = DateTime.now();
-                            int startHour = 10;
-                            int startMinute = 0;
-                            final parts = _selectedTimeSlot.split(' ');
-                            if (parts.length == 2) {
-                              final timeParts = parts[0].split(':');
-                              if (timeParts.length == 2) {
-                                startHour = int.tryParse(timeParts[0]) ?? 10;
-                                startMinute = int.tryParse(timeParts[1]) ?? 0;
-                                if (parts[1] == 'PM' && startHour < 12) startHour += 12;
-                                if (parts[1] == 'AM' && startHour == 12) startHour = 0;
-                              }
-                            }
-
-                            final startTime = DateTime(now.year, now.month, now.day, startHour, startMinute);
-                            final endTime = startTime.add(Duration(hours: _durationHours));
-
-                            try {
-                              final createdBooking = await dataService.createBooking(
-                                parkingSpaceId: lot.id,
-                                bookingDate: now.toIso8601String(),
-                                startTime: startTime.toIso8601String(),
-                                endTime: endTime.toIso8601String(),
-                                paymentMethod: 'CARD',
-                              );
-
-                              if (!mounted) return;
-
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => ConfirmationScreen(booking: createdBooking),
-                                ),
-                              );
-                            } catch (e) {
-                              if (!mounted) return;
-                              final errStr = e.toString().toLowerCase();
-                              String userMsg = 'Unable to complete reservation. Please try again.';
-                              if (errStr.contains('409') || errStr.contains('reserved') || errStr.contains('taken')) {
-                                userMsg = 'Someone just grabbed this spot — please pick another slot.';
-                              } else if (errStr.contains('network') || errStr.contains('socket')) {
-                                userMsg = 'Network issue detected. Check your connection and retry.';
-                              }
-
-                              showDialog(
-                                context: context,
-                                builder: (ctx) => AlertDialog(
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                  title: const Row(
-                                    children: [
-                                      Icon(Icons.error_outline_rounded, color: Colors.redAccent),
-                                      SizedBox(width: 8),
-                                      Text('Reservation Failed'),
-                                    ],
-                                  ),
-                                  content: Text(userMsg),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(ctx),
-                                      child: const Text('OK'),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            } finally {
-                              if (mounted) {
-                                setState(() {
-                                  _isSubmitting = false;
-                                });
-                              }
-                            }
-                          },
+                        : () => _handleBookingSubmit(lot, effectiveRate, dataService),
                     child: _isSubmitting
                         ? const Row(
                             mainAxisAlignment: MainAxisAlignment.center,

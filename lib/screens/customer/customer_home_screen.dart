@@ -246,9 +246,9 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                             ),
                           ],
                         ),
-                        child: Column(
+                        child: const Column(
                           mainAxisSize: MainAxisSize.min,
-                          children: const [
+                          children: [
                             Icon(Icons.map_rounded, size: 48, color: Color(0xFF005DAC)),
                             SizedBox(height: 12),
                             Text(

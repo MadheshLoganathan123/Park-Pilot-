@@ -902,7 +902,7 @@ class _CornerBracketViewfinderPainter extends CustomPainter {
     final bottom = top + boxSize;
 
     final bracketLength = boxSize * 0.22;
-    final radius = 12.0;
+    const radius = 12.0;
 
     final bracketPaint = Paint()
       ..color = bracketColor
@@ -914,7 +914,7 @@ class _CornerBracketViewfinderPainter extends CustomPainter {
     final tlPath = Path()
       ..moveTo(left, top + bracketLength)
       ..lineTo(left, top + radius)
-      ..arcToPoint(Offset(left + radius, top), radius: Radius.circular(radius))
+      ..arcToPoint(Offset(left + radius, top), radius: const Radius.circular(12.0))
       ..lineTo(left + bracketLength, top);
     canvas.drawPath(tlPath, bracketPaint);
 
@@ -922,7 +922,7 @@ class _CornerBracketViewfinderPainter extends CustomPainter {
     final trPath = Path()
       ..moveTo(right - bracketLength, top)
       ..lineTo(right - radius, top)
-      ..arcToPoint(Offset(right, top + radius), radius: Radius.circular(radius))
+      ..arcToPoint(Offset(right, top + radius), radius: const Radius.circular(12.0))
       ..lineTo(right, top + bracketLength);
     canvas.drawPath(trPath, bracketPaint);
 
@@ -930,7 +930,7 @@ class _CornerBracketViewfinderPainter extends CustomPainter {
     final blPath = Path()
       ..moveTo(left, bottom - bracketLength)
       ..lineTo(left, bottom - radius)
-      ..arcToPoint(Offset(left + radius, bottom), radius: Radius.circular(radius))
+      ..arcToPoint(Offset(left + radius, bottom), radius: const Radius.circular(12.0))
       ..lineTo(left + bracketLength, bottom);
     canvas.drawPath(blPath, bracketPaint);
 
@@ -938,7 +938,7 @@ class _CornerBracketViewfinderPainter extends CustomPainter {
     final brPath = Path()
       ..moveTo(right - bracketLength, bottom)
       ..lineTo(right - radius, bottom)
-      ..arcToPoint(Offset(right, bottom - radius), radius: Radius.circular(radius))
+      ..arcToPoint(Offset(right, bottom - radius), radius: const Radius.circular(12.0))
       ..lineTo(right, bottom - bracketLength);
     canvas.drawPath(brPath, bracketPaint);
 

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../../services/parking_data_service.dart';
 import '../app_shell.dart';
 
@@ -286,10 +285,11 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                       BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10),
                     ],
                   ),
-                  child: Center(
-                    child: SvgPicture.network(
-                      'https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg',
-                      width: 30,
+                  child: const Center(
+                    child: Icon(
+                      Icons.g_mobiledata_rounded,
+                      color: Color(0xFFEA4335),
+                      size: 38,
                     ),
                   ),
                 ),

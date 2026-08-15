@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/parking_data_service.dart';
 import 'app_shell.dart';
@@ -170,8 +169,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       setDialogState(() => isSubmitting = true);
                       try {
                         await ParkingDataService().sendPasswordReset(email);
-                        if (mounted) {
+                        if (dialogContext.mounted) {
                           Navigator.pop(dialogContext);
+                        }
+                        if (mounted) {
                           _showSnackBar('Reset link sent to $email', isError: false);
                         }
                       } catch (e) {
@@ -418,21 +419,16 @@ class _LoginScreenState extends State<LoginScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       backgroundColor: Colors.white,
                     ),
-                    child: Row(
+                    child: const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        SvgPicture.network(
-                          'https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg',
-                          width: 22,
-                          height: 22,
-                          placeholderBuilder: (context) => const Icon(
-                            Icons.g_mobiledata_rounded,
-                            color: Color(0xFFEA4335),
-                            size: 26,
-                          ),
+                        Icon(
+                          Icons.g_mobiledata_rounded,
+                          color: Color(0xFFEA4335),
+                          size: 30,
                         ),
-                        const SizedBox(width: 12),
-                        const Text(
+                        SizedBox(width: 12),
+                        Text(
                           'Sign in with Google',
                           style: TextStyle(color: Color(0xFF1E293B), fontSize: 15, fontWeight: FontWeight.w600),
                         ),

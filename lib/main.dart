@@ -57,6 +57,35 @@ class ParkPilotApp extends StatelessWidget {
         ),
       ),
       home: dataService.isLoggedIn ? const AppShell() : const LoginScreen(),
+      builder: (context, child) {
+        return Container(
+          color: const Color(0xFF0F172A),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: ClipRRect(
+                borderRadius: MediaQuery.of(context).size.width > 500
+                    ? BorderRadius.circular(24)
+                    : BorderRadius.zero,
+                child: Container(
+                  decoration: BoxDecoration(
+                    boxShadow: MediaQuery.of(context).size.width > 500
+                        ? [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.35),
+                              blurRadius: 30,
+                              offset: const Offset(0, 10),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: child!,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

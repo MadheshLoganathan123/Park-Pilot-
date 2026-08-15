@@ -89,8 +89,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
           Container(
             width: 90,
             height: 90,
-            decoration: BoxDecoration(
-              color: const Color(0xFFE2E8F0),
+            decoration: const BoxDecoration(
+              color: Color(0xFFE2E8F0),
               shape: BoxShape.circle,
             ),
           ),

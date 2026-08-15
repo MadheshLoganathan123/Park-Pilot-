@@ -80,9 +80,11 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
         ],
       ),
     );
-    if (result != null && result.isNotEmpty) setState(() {
-      _methods.add(result);
-      _save();
-    });
+    if (result != null && result.isNotEmpty) {
+      setState(() {
+        _methods.add(result);
+        _save();
+      });
+    }
   }
 }
