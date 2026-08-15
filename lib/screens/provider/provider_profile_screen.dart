@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/parking_lot.dart';
-import '../../services/api_client.dart';
 import '../../services/parking_data_service.dart';
-import '../../services/profile_image_storage_service.dart';
-import '../../widgets/profile_editor.dart';
 import '../customer/edit_profile_screen.dart';
 import '../login_screen.dart';
 import 'manage_parking_space_screen.dart';
@@ -17,8 +14,6 @@ class ProviderProfileScreen extends StatefulWidget {
 
 class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
   final _dataService = ParkingDataService();
-  final _imageStorage = ProfileImageStorageService();
-  bool _savingProfile = false;
 
   bool _hasEv = true;
   bool _hasCctv = true;
@@ -88,40 +83,13 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
   Future<void> _editProfile() async {
     final profile = _dataService.profile;
     if (profile == null) return;
-    final result = await showProfileEditor(context, profile);
-    if (result == null) return;
-
-    setState(() => _savingProfile = true);
-    try {
-      final imageUrl = result.image == null
-          ? null
-          : await _imageStorage.uploadProfileImage(result.image!);
-      await _dataService.updateProfile(
-        name: result.name,
-        phone: result.phone,
-        profileImage: imageUrl,
-        clearProfileImage: result.removeImage,
-        role: result.role,
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile updated successfully.')),
-        );
-      }
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not save your profile: ${_friendlyError(error)}')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _savingProfile = false);
+    final result = await Navigator.push<bool?>(
+      context,
+      MaterialPageRoute(builder: (_) => EditProfileScreen(initial: profile)),
+    );
+    if (result == true) {
+      await _loadProfile();
     }
-  }
-
-  String _friendlyError(Object error) {
-    if (error is ApiException) return error.message;
-    return error.toString().replaceFirst('Exception: ', '');
   }
 
   @override
@@ -156,15 +124,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                   icon: const Icon(Icons.add_business_rounded, color: Color(0xFF005DAC)),
                 ),
                 IconButton(
-                  onPressed: profile == null || _savingProfile
-                      ? null
-                      : () async {
-                          final res = await Navigator.push<bool?>(
-                            context,
-                            MaterialPageRoute(builder: (_) => EditProfileScreen(initial: profile)),
-                          );
-                          if (res == true) _loadProfile();
-                        },
+                  onPressed: profile == null ? null : _editProfile,
                   tooltip: 'Edit account profile',
                   icon: const Icon(Icons.edit_outlined, color: Color(0xFF005DAC)),
                 ),
@@ -315,12 +275,6 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
 
                           const SizedBox(height: 28),
 
-                          if (_savingProfile)
-                            const Padding(
-                              padding: EdgeInsets.all(12),
-                              child: CircularProgressIndicator(),
-                            ),
-
                           // Logout Button
                           Container(
                             decoration: BoxDecoration(
@@ -401,7 +355,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                   ),
                 ),
                 IconButton(
-                  onPressed: _savingProfile ? null : _editProfile,
+                  onPressed: _editProfile,
                   icon: const Icon(Icons.edit_outlined, color: Color(0xFF005DAC)),
                 ),
               ],

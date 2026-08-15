@@ -47,8 +47,10 @@ export class UserService {
         data: {
           email,
           ...(dto.role ? { role: dto.role } : {}),
-          ...(dto.name?.trim() ? { name: dto.name.trim() } : {}),
-          ...(dto.profileImage ? { profileImage: dto.profileImage } : {}),
+          // Only fill name/profileImage from Firebase token if the user hasn't
+          // set their own value yet — prevents login from overwriting profile edits.
+          ...(dto.name?.trim() && !userByUid.name ? { name: dto.name.trim() } : {}),
+          ...(dto.profileImage && !userByUid.profileImage ? { profileImage: dto.profileImage } : {}),
         },
       });
     }
@@ -64,8 +66,9 @@ export class UserService {
         data: {
           firebaseUid: dto.firebaseUid,
           ...(dto.role ? { role: dto.role } : {}),
-          ...(dto.name?.trim() ? { name: dto.name.trim() } : {}),
-          ...(dto.profileImage ? { profileImage: dto.profileImage } : {}),
+          // Same guard: only fill from Firebase token if DB fields are empty.
+          ...(dto.name?.trim() && !userByEmail.name ? { name: dto.name.trim() } : {}),
+          ...(dto.profileImage && !userByEmail.profileImage ? { profileImage: dto.profileImage } : {}),
         },
       });
     }
