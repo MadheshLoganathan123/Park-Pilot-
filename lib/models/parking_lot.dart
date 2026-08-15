@@ -136,6 +136,8 @@ class ParkingLot {
   bool isOpen;
   final List<String> amenities;
   final String? imageUrl;
+  final double latitude;
+  final double longitude;
 
   ParkingLot({
     required this.id,
@@ -151,6 +153,8 @@ class ParkingLot {
     this.isOpen = true,
     this.amenities = const [],
     this.imageUrl,
+    this.latitude = 13.0827,
+    this.longitude = 80.2707,
   });
 
   int get availableSlotsCount => slots.where((s) => s.status == SlotStatus.available).length;
@@ -219,6 +223,8 @@ class ParkingLot {
       isOpen: json['status'] == 'ACTIVE' || json['status'] == null,
       amenities: const ['CCTV', 'Security guards', 'Covered', 'EV Charging'],
       imageUrl: json['imageUrl']?.toString(),
+      latitude: (json['latitude'] as num?)?.toDouble() ?? 13.0827,
+      longitude: (json['longitude'] as num?)?.toDouble() ?? 80.2707,
     );
   }
 
@@ -236,6 +242,8 @@ class ParkingLot {
     'isOpen': isOpen,
     'amenities': amenities,
     'imageUrl': imageUrl,
+    'latitude': latitude,
+    'longitude': longitude,
   };
 }
 

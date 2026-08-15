@@ -3,6 +3,7 @@ import '../../models/parking_lot.dart';
 import '../../services/parking_data_service.dart';
 import 'parking_details_screen.dart';
 import 'slot_selection_screen.dart';
+import 'live_parking_map_screen.dart';
 
 class FindParkingScreen extends StatefulWidget {
   const FindParkingScreen({super.key});
@@ -162,15 +163,23 @@ class _FindParkingScreenState extends State<FindParkingScreen> {
                       ),
                     ),
                     Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.map_outlined, size: 18, color: Color(0xFF64748B)),
-                            SizedBox(width: 8),
-                            Text('Map', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
-                          ],
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const LiveParkingMapScreen()),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.map_outlined, size: 18, color: Color(0xFF005DAC)),
+                              SizedBox(width: 8),
+                              Text('Map', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF005DAC))),
+                            ],
+                          ),
                         ),
                       ),
                     ),

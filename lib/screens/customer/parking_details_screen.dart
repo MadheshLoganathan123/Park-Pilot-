@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../../models/parking_lot.dart';
+import '../../services/osm_map_service.dart';
 import '../../services/parking_data_service.dart';
 import 'slot_selection_screen.dart';
+import 'live_parking_map_screen.dart';
 
 class ParkingDetailsScreen extends StatefulWidget {
   final ParkingLot lot;
@@ -375,6 +379,72 @@ class _ParkingDetailsScreenState extends State<ParkingDetailsScreen> {
                                   ),
                                 ),
                               ],
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          const Text(
+                            'Location & Navigation',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 12),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              height: 160,
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Stack(
+                                children: [
+                                  FlutterMap(
+                                    options: MapOptions(
+                                      initialCenter: LatLng(_currentLot.latitude, _currentLot.longitude),
+                                      initialZoom: 14.5,
+                                      interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
+                                    ),
+                                    children: [
+                                      TileLayer(
+                                        urlTemplate: OsmMapService.tileUrlTemplate,
+                                        userAgentPackageName: 'com.parkpilot.app',
+                                      ),
+                                      MarkerLayer(
+                                        markers: [
+                                          Marker(
+                                            point: LatLng(_currentLot.latitude, _currentLot.longitude),
+                                            width: 40,
+                                            height: 40,
+                                            child: const Icon(Icons.location_on, color: Color(0xFF005DAC), size: 36),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                  Positioned(
+                                    bottom: 10,
+                                    right: 10,
+                                    child: ElevatedButton.icon(
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => LiveParkingMapScreen(initialFocusLot: _currentLot),
+                                          ),
+                                        );
+                                      },
+                                      icon: const Icon(Icons.navigation_rounded, size: 16, color: Colors.white),
+                                      label: const Text('Open in Live Map', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF005DAC),
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                           const SizedBox(height: 100),

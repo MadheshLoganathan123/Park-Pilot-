@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import '../../models/parking_lot.dart';
 import '../../services/parking_data_service.dart';
+import 'find_parking_screen.dart';
 import 'parking_details_screen.dart';
+import 'live_parking_map_screen.dart';
 import 'slot_selection_screen.dart';
 
 class CustomerHomeScreen extends StatefulWidget {
@@ -221,51 +224,59 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                   ),
                   const SizedBox(height: 24),
                   // Map Preview Card
-                  Container(
-                    height: 180,
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFDBEAFE), Color(0xFFE0F2FE)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                    ),
-                    child: Center(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.08),
-                              blurRadius: 14,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const LiveParkingMapScreen()),
+                      );
+                    },
+                    child: Container(
+                      height: 180,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFDBEAFE), Color(0xFFE0F2FE)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
-                        child: const Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.map_rounded, size: 48, color: Color(0xFF005DAC)),
-                            SizedBox(height: 12),
-                            Text(
-                              'Live Map Discovery',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF1E293B),
+                      ),
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.08),
+                                blurRadius: 14,
+                                offset: const Offset(0, 8),
                               ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'Explore real-time slot availability in Chennai',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: Color(0xFF64748B), fontSize: 12),
-                            ),
-                          ],
+                            ],
+                          ),
+                          child: const Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.map_rounded, size: 48, color: Color(0xFF005DAC)),
+                              SizedBox(height: 12),
+                              Text(
+                                'Live Map Discovery',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1E293B),
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'Explore real-time slot availability in Chennai',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
