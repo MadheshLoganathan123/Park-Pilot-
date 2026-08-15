@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../services/parking_data_service.dart';
 import '../../models/parking_lot.dart';
@@ -14,6 +15,7 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
   String _selectedTab = 'Today'; // 'Today', 'This Week', 'All Time'
   String _searchQuery = '';
   final Set<String> _loadingCheckIns = {};
+  Timer? _pollingTimer;
 
   @override
   void initState() {
@@ -21,10 +23,18 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ParkingDataService().loadProviderBookings();
     });
+
+    // Auto-refresh provider bookings every 15 seconds
+    _pollingTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted) {
+        ParkingDataService().loadProviderBookings();
+      }
+    });
   }
 
   @override
   void dispose() {
+    _pollingTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }

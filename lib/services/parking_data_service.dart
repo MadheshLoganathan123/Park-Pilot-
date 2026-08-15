@@ -146,7 +146,7 @@ class ParkingDataService extends ChangeNotifier {
   }
 
   Future<void> login(String email, String password, AppUserRole role) async {
-    final cleanEmail = email.trim();
+    final cleanEmail = email.trim().toLowerCase();
     try {
       _resetProfileState();
       final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
@@ -158,9 +158,9 @@ class ParkingDataService extends ChangeNotifier {
       loadBookings();
     } on FirebaseAuthException catch (e) {
       debugPrint('Login attempt failed: ${e.code} - ${e.message}');
-      
+
       // Auto-fallback: If account does not exist in Firebase yet (e.g. seeded accounts), automatically register them in Firebase!
-      if (e.code == 'user-not-found' || e.code == 'invalid-credential') {
+      if (e.code == 'user-not-found' || e.code == 'invalid-credential' || e.code == 'INVALID_LOGIN_CREDENTIALS') {
         try {
           debugPrint('Attempting auto-registration for $cleanEmail...');
           final newCred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
@@ -172,34 +172,66 @@ class ParkingDataService extends ChangeNotifier {
           loadBookings();
           return;
         } catch (regError) {
-          debugPrint('Auto-registration was not applicable: $regError');
+          debugPrint('Auto-registration fallback skipped: $regError');
         }
       }
 
-      if (e.code == 'invalid-credential' || e.code == 'wrong-password') {
+      if (e.code == 'invalid-credential' || e.code == 'wrong-password' || e.code == 'INVALID_LOGIN_CREDENTIALS') {
         throw FirebaseAuthException(
-          code: e.code,
-          message: 'Incorrect password, or this email was registered using Google Sign-In. Try "Sign in with Google" or "Sign up".',
+          code: 'invalid-credential',
+          message: 'Incorrect email or password. Please check your credentials or tap "Sign up".',
         );
       } else if (e.code == 'user-not-found') {
         throw FirebaseAuthException(
-          code: e.code,
-          message: 'Account not found. Tap "Sign up" below to create an account.',
+          code: 'user-not-found',
+          message: 'No account found with this email. Please tap "Sign up" to create an account.',
         );
       }
       rethrow;
     }
   }
 
-  Future<void> createAccount(String email, String password, AppUserRole role) async {
+  Future<void> createAccount(String email, String password, AppUserRole role, {String? name}) async {
+    final cleanEmail = email.trim().toLowerCase();
     try {
       _resetProfileState();
-      final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(email: email, password: password);
+      final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: cleanEmail,
+        password: password,
+      );
+      if (name != null && name.trim().isNotEmpty) {
+        try {
+          await credential.user?.updateDisplayName(name.trim());
+        } catch (_) {}
+      }
       await _syncAndSaveSession(credential.user!, role);
       loadLots();
       loadBookings();
     } on FirebaseAuthException catch (e) {
-      debugPrint('Registration failed: ${e.message}');
+      debugPrint('Registration failed: ${e.code} - ${e.message}');
+      if (e.code == 'email-already-in-use') {
+        // Try logging in with the provided credentials if already in Firebase
+        try {
+          final signinCred = await FirebaseAuth.instance.signInWithEmailAndPassword(
+            email: cleanEmail,
+            password: password,
+          );
+          await _syncAndSaveSession(signinCred.user!, role);
+          loadLots();
+          loadBookings();
+          return;
+        } catch (_) {
+          throw FirebaseAuthException(
+            code: 'email-already-in-use',
+            message: 'This email is already registered. Please go to Login and enter your password.',
+          );
+        }
+      } else if (e.code == 'weak-password') {
+        throw FirebaseAuthException(
+          code: 'weak-password',
+          message: 'Password is too weak. Please use at least 6 characters.',
+        );
+      }
       rethrow;
     }
   }
@@ -778,6 +810,175 @@ class ParkingDataService extends ChangeNotifier {
       debugPrint('Error updating provider settings: $e');
       return true;
     }
+  }
+
+  Future<void> loadProviderSpaces() async {
+    final pid = _userId;
+    if (pid != null) {
+      try {
+        final data = await _apiClient.get('/providers/$pid/spaces');
+        if (data is List) {
+          _providerSpaces = data.map((item) => ParkingLot.fromJson(item as Map<String, dynamic>)).toList();
+          notifyListeners();
+          return;
+        }
+      } catch (e) {
+        debugPrint('Error loading provider spaces from API: $e');
+      }
+    }
+  }
+
+  List<ParkingLot> _providerSpaces = [];
+  List<ParkingLot> get providerSpaces => _providerSpaces.isNotEmpty ? _providerSpaces : _lots;
+
+  Future<ParkingLot?> createParkingSpaceApi({
+    required String name,
+    required String address,
+    required double latitude,
+    required double longitude,
+    required int totalSlots,
+    required double pricePerHour,
+    String parkingType = 'COVERED',
+    String operatingHours = '24/7',
+    String? description,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final payload = {
+        'name': name.trim(),
+        'address': address.trim(),
+        'latitude': latitude,
+        'longitude': longitude,
+        'totalSlots': totalSlots,
+        'availableSlots': totalSlots,
+        'pricePerHour': pricePerHour,
+        'parkingType': parkingType,
+        'operatingHours': operatingHours,
+        if (description != null && description.isNotEmpty) 'description': description.trim(),
+      };
+
+      final data = await _apiClient.post('/parking', body: payload);
+      if (data is Map<String, dynamic>) {
+        final newLot = ParkingLot.fromJson(data);
+        _lots.insert(0, newLot);
+        _providerSpaces.insert(0, newLot);
+        _selectedLotIndex = 0;
+        await loadLots();
+        await loadProviderStats();
+        notifyListeners();
+        return newLot;
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+      debugPrint('Error creating parking space on API: $e');
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+    return null;
+  }
+
+  Future<bool> updateParkingSpaceApi({
+    required String spaceId,
+    String? name,
+    String? address,
+    double? latitude,
+    double? longitude,
+    int? totalSlots,
+    int? availableSlots,
+    double? pricePerHour,
+    String? parkingType,
+    String? operatingHours,
+    String? description,
+    String? status,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final payload = {
+        if (name != null) 'name': name.trim(),
+        if (address != null) 'address': address.trim(),
+        if (latitude != null) 'latitude': latitude,
+        if (longitude != null) 'longitude': longitude,
+        if (totalSlots != null) 'totalSlots': totalSlots,
+        if (availableSlots != null) 'availableSlots': availableSlots,
+        if (pricePerHour != null) 'pricePerHour': pricePerHour,
+        if (parkingType != null) 'parkingType': parkingType,
+        if (operatingHours != null) 'operatingHours': operatingHours,
+        if (description != null) 'description': description.trim(),
+        if (status != null) 'status': status,
+      };
+
+      final data = await _apiClient.put('/parking/$spaceId', body: payload);
+      if (data != null) {
+        await loadLots();
+        await loadProviderSpaces();
+        await loadProviderStats();
+        notifyListeners();
+        return true;
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+      debugPrint('Error updating parking space on API: $e');
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+    return false;
+  }
+
+  Future<bool> deleteParkingSpaceApi(String spaceId) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _apiClient.delete('/parking/$spaceId');
+      _lots.removeWhere((l) => l.id == spaceId);
+      _providerSpaces.removeWhere((l) => l.id == spaceId);
+      if (_selectedLotIndex >= _lots.length) {
+        _selectedLotIndex = 0;
+      }
+      await loadLots();
+      await loadProviderStats();
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      debugPrint('Error deleting parking space on API: $e');
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> updateFacilityAmenitiesApi({
+    required String spaceId,
+    required bool hasEv,
+    required bool hasCctv,
+    required bool hasCovered,
+    required bool hasSecurity,
+  }) async {
+    final amenitiesList = <String>[];
+    if (hasEv) amenitiesList.add('EV Fast Charging Bays');
+    if (hasCctv) amenitiesList.add('24/7 CCTV & ANPR Cameras');
+    if (hasCovered) amenitiesList.add('Covered Basement Weather Protection');
+    if (hasSecurity) amenitiesList.add('Security Guard Patrol');
+
+    final descriptionString = amenitiesList.join(' | ');
+
+    return updateParkingSpaceApi(
+      spaceId: spaceId,
+      description: descriptionString,
+    );
   }
 
   double get todayRevenue => _providerStats.todayRevenue;

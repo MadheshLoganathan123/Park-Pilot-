@@ -101,6 +101,18 @@ class ApiClient {
     }
   }
 
+  Future<dynamic> delete(String endpoint, {String? token}) async {
+    try {
+      final uri = _buildUri(endpoint);
+      return await _request(
+        (headers) => _client.delete(uri, headers: headers).timeout(const Duration(seconds: 15)),
+        token: token,
+      );
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   dynamic _processResponse(http.Response response) {
     dynamic jsonResponse;
     try {

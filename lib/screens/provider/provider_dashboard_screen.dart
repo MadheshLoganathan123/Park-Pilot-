@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../models/parking_lot.dart';
 import '../../services/parking_data_service.dart';
+import 'manage_parking_space_screen.dart';
 import 'provider_qr_validator_screen.dart';
 
 class ProviderDashboardScreen extends StatefulWidget {
@@ -12,6 +14,7 @@ class ProviderDashboardScreen extends StatefulWidget {
 
 class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> with SingleTickerProviderStateMixin {
   late AnimationController _shimmerController;
+  Timer? _pollingTimer;
 
   @override
   void initState() {
@@ -22,13 +25,28 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> with 
     )..repeat(reverse: true);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ParkingDataService().loadProviderStats();
-      ParkingDataService().loadLots();
+      _refreshDashboard();
     });
+
+    // Auto-refresh provider stats and bookings every 15 seconds
+    _pollingTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted) {
+        _refreshDashboard();
+      }
+    });
+  }
+
+  void _refreshDashboard() {
+    final ds = ParkingDataService();
+    ds.loadProviderStats();
+    ds.loadProviderBookings();
+    ds.loadProviderSpaces();
+    ds.loadLots();
   }
 
   @override
   void dispose() {
+    _pollingTimer?.cancel();
     _shimmerController.dispose();
     super.dispose();
   }
@@ -46,6 +64,7 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> with 
         final int occupied = stats.occupiedSlotsCount;
         final int total = stats.totalSlotsCount > 0 ? stats.totalSlotsCount : 150;
         final int available = stats.availableSlotsCount > 0 ? stats.availableSlotsCount : (total - occupied);
+        final spaces = dataService.providerSpaces;
 
         // Color transition: Green (<70%) -> Amber (70-90%) -> Red (>90%)
         Color ringColor;
@@ -71,12 +90,19 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> with 
                   child: const Icon(Icons.local_parking_rounded, color: Colors.white, size: 18),
                 ),
                 const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Provider Dashboard', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF005DAC))),
-                    Text(dataService.currentProviderLot.name, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
-                  ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Provider Dashboard', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF005DAC))),
+                      Text(
+                        dataService.currentProviderLot.name,
+                        style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -84,18 +110,71 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> with 
             elevation: 0,
             actions: [
               IconButton(
+                icon: const Icon(Icons.add_business_rounded, color: Color(0xFF005DAC)),
+                tooltip: 'Add Parking Space',
+                onPressed: () async {
+                  final res = await Navigator.push<bool?>(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ManageParkingSpaceScreen()),
+                  );
+                  if (res == true) _refreshDashboard();
+                },
+              ),
+              IconButton(
                 icon: const Icon(Icons.refresh_rounded, color: Color(0xFF005DAC)),
-                onPressed: () => dataService.loadProviderStats(),
+                tooltip: 'Refresh Dashboard',
+                onPressed: _refreshDashboard,
               ),
             ],
           ),
           body: RefreshIndicator(
-            onRefresh: () => dataService.loadProviderStats(),
+            onRefresh: () async => _refreshDashboard(),
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Multi-Space Switcher (if provider has > 1 lot)
+                  if (spaces.length > 1) ...[
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.business_rounded, color: Color(0xFF005DAC), size: 20),
+                          const SizedBox(width: 10),
+                          const Text('Facility:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<int>(
+                                value: dataService.selectedLotIndex < spaces.length ? dataService.selectedLotIndex : 0,
+                                isDense: true,
+                                isExpanded: true,
+                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                                items: List.generate(spaces.length, (idx) {
+                                  return DropdownMenuItem(
+                                    value: idx,
+                                    child: Text(spaces[idx].name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                  );
+                                }),
+                                onChanged: (val) {
+                                  if (val != null) {
+                                    dataService.selectProviderLot(val);
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   // KPI Overview Header Cards
                   Row(
                     children: [

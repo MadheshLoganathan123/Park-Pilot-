@@ -11,20 +11,51 @@ class CreateAccountScreen extends StatefulWidget {
 }
 
 class _CreateAccountScreenState extends State<CreateAccountScreen> {
+  final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   AppUserRole _selectedRole = AppUserRole.customer;
   bool _isLoading = false;
 
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
   void _handleCreateAccount() async {
+    final name = _nameController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please fill in all fields'),
+          content: Text('Please fill in email and password.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    if (!email.contains('@') || !email.contains('.')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid email address.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    if (password.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Password must be at least 6 characters long.'),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -34,7 +65,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     if (password != _confirmPasswordController.text) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Passwords do not match'),
+          content: Text('Passwords do not match.'),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -44,7 +75,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     setState(() => _isLoading = true);
     try {
       final dataService = ParkingDataService();
-      await dataService.createAccount(email, password, _selectedRole);
+      await dataService.createAccount(email, password, _selectedRole, name: name.isNotEmpty ? name : null);
       if (mounted) {
         Navigator.pushAndRemoveUntil(
           context,
@@ -60,7 +91,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Registration failed: $errorMessage'),
+            content: Text(errorMessage),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -118,18 +149,18 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: 20),
-              // Logo placeholder
+              const SizedBox(height: 10),
+              // Logo
               Container(
-                width: 80,
-                height: 80,
+                width: 70,
+                height: 70,
                 decoration: BoxDecoration(
                   color: const Color(0xFF005DAC),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                child: const Icon(Icons.local_parking_rounded, color: Colors.white, size: 50),
+                child: const Icon(Icons.local_parking_rounded, color: Colors.white, size: 44),
               ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 20),
               const Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -141,16 +172,40 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 20),
               TextField(
-                controller: _emailController,
+                controller: _nameController,
                 decoration: InputDecoration(
-                  hintText: 'Email',
+                  hintText: 'Full Name (e.g. Rahul Sharma)',
+                  prefixIcon: const Icon(Icons.person_outline_rounded, color: Color(0xFF94A3B8), size: 20),
                   filled: true,
                   fillColor: const Color(0xFFF8FAFC),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
+                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(
+                  hintText: 'Email Address',
+                  prefixIcon: const Icon(Icons.email_outlined, color: Color(0xFF94A3B8), size: 20),
+                  filled: true,
+                  fillColor: const Color(0xFFF8FAFC),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                   ),
                 ),
               ),

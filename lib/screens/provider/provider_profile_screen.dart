@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import '../../models/parking_lot.dart';
 import '../../services/api_client.dart';
 import '../../services/parking_data_service.dart';
 import '../../services/profile_image_storage_service.dart';
 import '../../widgets/profile_editor.dart';
 import '../customer/edit_profile_screen.dart';
 import '../login_screen.dart';
+import 'manage_parking_space_screen.dart';
 
 class ProviderProfileScreen extends StatefulWidget {
   const ProviderProfileScreen({super.key});
@@ -18,6 +20,12 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
   final _imageStorage = ProfileImageStorageService();
   bool _savingProfile = false;
 
+  bool _hasEv = true;
+  bool _hasCctv = true;
+  bool _hasCovered = true;
+  bool _hasSecurity = true;
+  bool _updatingAmenities = false;
+
   @override
   void initState() {
     super.initState();
@@ -28,8 +36,53 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
     try {
       await _dataService.refreshProfile();
       await _dataService.loadProviderStats();
+      await _dataService.loadProviderSpaces();
       await _dataService.loadLots();
     } catch (_) {}
+  }
+
+  Future<void> _toggleAmenity(String label, bool currentVal, Function(bool) setVal) async {
+    final lot = _dataService.currentProviderLot;
+    final newVal = !currentVal;
+    setState(() {
+      setVal(newVal);
+      _updatingAmenities = true;
+    });
+
+    try {
+      final success = await _dataService.updateFacilityAmenitiesApi(
+        spaceId: lot.id,
+        hasEv: _hasEv,
+        hasCctv: _hasCctv,
+        hasCovered: _hasCovered,
+        hasSecurity: _hasSecurity,
+      );
+
+      if (!mounted) return;
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$label ${newVal ? "enabled" : "disabled"} for ${lot.name}.'),
+            duration: const Duration(seconds: 2),
+            backgroundColor: const Color(0xFF005DAC),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      // revert
+      setState(() => setVal(currentVal));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to update amenity: $e'),
+          backgroundColor: const Color(0xFFDC2626),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _updatingAmenities = false);
+    }
   }
 
   Future<void> _editProfile() async {
@@ -79,6 +132,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
           final profile = _dataService.profile;
           final stats = _dataService.providerStatsObj;
           final loading = _dataService.isProfileLoading && profile == null;
+          final allSpaces = _dataService.providerSpaces;
 
           return Scaffold(
             backgroundColor: const Color(0xFFF8FAFC),
@@ -90,6 +144,17 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                 style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 18),
               ),
               actions: [
+                IconButton(
+                  onPressed: () async {
+                    final res = await Navigator.push<bool?>(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ManageParkingSpaceScreen()),
+                    );
+                    if (res == true) _loadProfile();
+                  },
+                  tooltip: 'Add New Parking Facility',
+                  icon: const Icon(Icons.add_business_rounded, color: Color(0xFF005DAC)),
+                ),
                 IconButton(
                   onPressed: profile == null || _savingProfile
                       ? null
@@ -187,10 +252,10 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                           ),
 
                           const SizedBox(height: 16),
-                          _buildLotHeaderCard(lot, stats),
+                          _buildLotHeaderCard(lot, stats, allSpaces),
                           const SizedBox(height: 20),
 
-                          _buildSectionHeader(Icons.layers_outlined, 'Facility Amenities'),
+                          _buildSectionHeader(Icons.layers_outlined, 'Facility Amenities & Persisted Features'),
                           const SizedBox(height: 10),
                           Container(
                             padding: const EdgeInsets.all(16),
@@ -201,10 +266,30 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                             ),
                             child: Column(
                               children: [
-                                _buildToggleItem(Icons.ev_station, 'EV Fast Charging Bays', true),
-                                _buildToggleItem(Icons.videocam_outlined, '24/7 CCTV & ANPR Cameras', true),
-                                _buildToggleItem(Icons.roofing_rounded, 'Covered Basement Weather Protection', true),
-                                _buildToggleItem(Icons.security_rounded, 'Security Guard Patrol', true),
+                                _buildToggleItem(
+                                  Icons.ev_station,
+                                  'EV Fast Charging Bays',
+                                  _hasEv,
+                                  (val) => _toggleAmenity('EV Charging', _hasEv, (v) => _hasEv = v),
+                                ),
+                                _buildToggleItem(
+                                  Icons.videocam_outlined,
+                                  '24/7 CCTV & ANPR Cameras',
+                                  _hasCctv,
+                                  (val) => _toggleAmenity('24/7 CCTV', _hasCctv, (v) => _hasCctv = v),
+                                ),
+                                _buildToggleItem(
+                                  Icons.roofing_rounded,
+                                  'Covered Basement Weather Protection',
+                                  _hasCovered,
+                                  (val) => _toggleAmenity('Covered Protection', _hasCovered, (v) => _hasCovered = v),
+                                ),
+                                _buildToggleItem(
+                                  Icons.security_rounded,
+                                  'Security Guard Patrol',
+                                  _hasSecurity,
+                                  (val) => _toggleAmenity('Security Guards', _hasSecurity, (v) => _hasSecurity = v),
+                                ),
                               ],
                             ),
                           ),
@@ -324,7 +409,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
     );
   }
 
-  Widget _buildLotHeaderCard(lot, stats) {
+  Widget _buildLotHeaderCard(lot, stats, List<ParkingLot> allSpaces) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -351,8 +436,31 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(lot.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            lot.name,
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.edit_note_rounded, color: Color(0xFF005DAC), size: 22),
+                          tooltip: 'Edit Facility Details',
+                          onPressed: () async {
+                            final res = await Navigator.push<bool?>(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ManageParkingSpaceScreen(existingLot: lot),
+                              ),
+                            );
+                            if (res == true) _loadProfile();
+                          },
+                        ),
+                      ],
+                    ),
                     Row(
                       children: [
                         const Icon(Icons.location_on_outlined, size: 13, color: Color(0xFF64748B)),
@@ -372,6 +480,48 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
               ),
             ],
           ),
+
+          // Multiple Spaces Dropdown Selector (if provider has > 1 lot)
+          if (allSpaces.length > 1) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.swap_horiz_rounded, size: 16, color: Color(0xFF005DAC)),
+                  const SizedBox(width: 8),
+                  const Text('Active Facility:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF475569))),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<int>(
+                        value: _dataService.selectedLotIndex < allSpaces.length ? _dataService.selectedLotIndex : 0,
+                        isDense: true,
+                        isExpanded: true,
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF005DAC)),
+                        items: List.generate(allSpaces.length, (idx) {
+                          return DropdownMenuItem(
+                            value: idx,
+                            child: Text(allSpaces[idx].name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                          );
+                        }),
+                        onChanged: (val) {
+                          if (val != null) {
+                            _dataService.selectProviderLot(val);
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           const SizedBox(height: 16),
           const Divider(height: 1),
           const SizedBox(height: 12),
@@ -380,8 +530,29 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
             children: [
               _statPill('Total Capacity', '${stats.totalSlotsCount} Slots', const Color(0xFF005DAC)),
               _statPill('Active Rate', '₹${lot.hourlyRate.toInt()}/hr', const Color(0xFF16A34A)),
-              _statPill('Live Status', 'OPEN 24/7', const Color(0xFFD97706)),
+              _statPill('Live Status', lot.isOpen ? 'OPEN 24/7' : 'CLOSED', lot.isOpen ? const Color(0xFF16A34A) : const Color(0xFFEF4444)),
             ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () async {
+                final res = await Navigator.push<bool?>(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ManageParkingSpaceScreen()),
+                );
+                if (res == true) _loadProfile();
+              },
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: const Text('Add Another Parking Facility', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF005DAC),
+                side: const BorderSide(color: Color(0xFF005DAC)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+              ),
+            ),
           ),
         ],
       ),
@@ -408,7 +579,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
     );
   }
 
-  Widget _buildToggleItem(IconData icon, String label, bool value) {
+  Widget _buildToggleItem(IconData icon, String label, bool value, ValueChanged<bool> onChanged) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -418,7 +589,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
           Expanded(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13))),
           Switch(
             value: value,
-            onChanged: (val) {},
+            onChanged: _updatingAmenities ? null : onChanged,
             activeThumbColor: Colors.white,
             activeTrackColor: const Color(0xFF005DAC),
           ),

@@ -34,26 +34,48 @@ export class UserService {
   }
 
   async syncAuthenticatedUser(dto: { firebaseUid: string; email: string; name?: string; profileImage?: string; role?: UserRole }) {
-    const existingUser = await prisma.user.findUnique({
+    const email = dto.email.trim().toLowerCase();
+
+    // 1. Check if user with this firebaseUid exists
+    const userByUid = await prisma.user.findUnique({
       where: { firebaseUid: dto.firebaseUid },
     });
 
-    if (existingUser) {
-      // Firebase is the source of truth for email. Update role if explicitly supplied.
+    if (userByUid) {
       return prisma.user.update({
-        where: { firebaseUid: dto.firebaseUid },
+        where: { id: userByUid.id },
         data: {
-          email: dto.email,
+          email,
           ...(dto.role ? { role: dto.role } : {}),
+          ...(dto.name?.trim() ? { name: dto.name.trim() } : {}),
+          ...(dto.profileImage ? { profileImage: dto.profileImage } : {}),
         },
       });
     }
 
+    // 2. Check if user with this email already exists in DB (e.g. from seed or re-registering in Firebase)
+    const userByEmail = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (userByEmail) {
+      return prisma.user.update({
+        where: { id: userByEmail.id },
+        data: {
+          firebaseUid: dto.firebaseUid,
+          ...(dto.role ? { role: dto.role } : {}),
+          ...(dto.name?.trim() ? { name: dto.name.trim() } : {}),
+          ...(dto.profileImage ? { profileImage: dto.profileImage } : {}),
+        },
+      });
+    }
+
+    // 3. Brand new user
     return prisma.user.create({
       data: {
         firebaseUid: dto.firebaseUid,
-        email: dto.email,
-        name: dto.name?.trim() || dto.email.split('@')[0],
+        email,
+        name: dto.name?.trim() || email.split('@')[0],
         profileImage: dto.profileImage,
         role: dto.role || UserRole.CUSTOMER,
       },
@@ -61,18 +83,43 @@ export class UserService {
   }
 
   async ensureAuthenticatedUser(dto: { firebaseUid: string; email?: string; name?: string; profileImage?: string }) {
-    const email = dto.email?.trim();
+    const email = dto.email?.trim().toLowerCase();
     if (!email) {
       throw new Error('A Firebase email is required to create a ParkPilot profile.');
     }
 
-    // The Firebase UID is the only lookup key. Updating the Firebase-sourced
-    // email here keeps the local account aligned if it changes upstream while
-    // preserving app-owned profile fields and role.
-    return prisma.user.upsert({
+    const userByUid = await prisma.user.findUnique({
       where: { firebaseUid: dto.firebaseUid },
-      update: { email },
-      create: {
+    });
+
+    if (userByUid) {
+      return prisma.user.update({
+        where: { id: userByUid.id },
+        data: {
+          email,
+          ...(dto.name?.trim() && !userByUid.name ? { name: dto.name.trim() } : {}),
+          ...(dto.profileImage && !userByUid.profileImage ? { profileImage: dto.profileImage } : {}),
+        },
+      });
+    }
+
+    const userByEmail = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (userByEmail) {
+      return prisma.user.update({
+        where: { id: userByEmail.id },
+        data: {
+          firebaseUid: dto.firebaseUid,
+          ...(dto.name?.trim() && !userByEmail.name ? { name: dto.name.trim() } : {}),
+          ...(dto.profileImage && !userByEmail.profileImage ? { profileImage: dto.profileImage } : {}),
+        },
+      });
+    }
+
+    return prisma.user.create({
+      data: {
         firebaseUid: dto.firebaseUid,
         email,
         name: dto.name?.trim() || email.split('@')[0],
