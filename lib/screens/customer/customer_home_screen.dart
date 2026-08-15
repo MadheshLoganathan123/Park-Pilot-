@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../models/parking_lot.dart';
 import '../../services/parking_data_service.dart';
-import 'find_parking_screen.dart';
 import 'parking_details_screen.dart';
 import 'live_parking_map_screen.dart';
 import 'slot_selection_screen.dart';

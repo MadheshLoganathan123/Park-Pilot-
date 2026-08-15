@@ -23,8 +23,7 @@ class _LiveParkingMapScreenState extends State<LiveParkingMapScreen> {
 
   ParkingLot? _selectedLot;
   RoutingResult? _currentRoute;
-  bool _isLoadingRoute = false;
-  LatLng _userPosition = OsmMapService.defaultUserLocation;
+  final LatLng _userPosition = OsmMapService.defaultUserLocation;
   bool _showRoute = false;
   String _filterAvailability = 'All'; // 'All', 'Available', 'EV Fast'
 
